@@ -1,0 +1,59 @@
+---
+title: 'Signet on Monad'
+description: 'The Signet attestation layer, ported to Monad (EVM) with a WebAuthn/P-256 passkey personhood primitive'
+---
+
+Signet on **Monad** is a Solidity port of the same attestation model that runs on
+Stellar — permissionless schemas, direct and delegated attestations, pluggable
+resolvers — plus one Monad-native primitive: **proof of personhood from a device
+passkey**, verified on chain through the RIP-7212 P-256 precompile.
+
+## Live contracts (Monad testnet · chain 10143)
+
+| Contract | Address |
+| --- | --- |
+| `SignetSchemaRegistry` | `0x2eb183fFd7D40866DEA68f2173C4C5a604D22602` |
+| `SignetAttestationRegistry` | `0x4A48BE178900874FF1E5c2cF91E0B56f67d5359C` |
+| `PasskeyAttester` | `0x5A99835d5E7434BBf3e44Cc6A3E76b762045c48d` |
+| `PersonhoodResolver` | `0xcf5b29668EB4Ea1dC51BA596c41bb2E722425100` |
+
+Personhood schema UID: `0x6e29449805b2f822cdbaea9ca4bbc8758addb90d9ac2206e6d6156a51cac74e4`
+
+The canonical machine-readable copy lives in
+[`contracts/evm/deployments.json`](https://github.com/robertocarlous/Signet/blob/main/contracts/evm/deployments.json).
+
+## The model
+
+- **Schema** — a reusable definition string. Anyone can register one; the
+  registrant becomes its `authority`. UID is deterministic:
+  `keccak256(abi.encode(SCHEMA_DOMAIN, keccak256(definition), authority, resolver, revocable))`.
+- **Attestation** — a signed claim structured by a schema.
+  `(schemaUID, subject, nonce)` is unique per attester; the global `uid` binds the
+  registry address and attester so it can't collide across deployments.
+- **Resolver** — an optional contract the registry calls on every attest / revoke.
+  `onAttest` / `onRevoke` are hard gates (a `false` return or a revert blocks the
+  op); `onResolve` is a best-effort post-hook.
+- **Delegation** — an attester signs an EIP-712 `Attest` / `Revoke` message
+  off-chain; anyone submits it and pays gas.
+
+## What's different from Stellar
+
+| | Stellar (Soroban) | Monad (EVM) |
+| --- | --- | --- |
+| attestation `value` | `String` | `bytes` (schema-encoded) |
+| delegated signatures | BLS12-381 | EIP-712 ECDSA (`secp256k1`) |
+| personhood | — | WebAuthn / P-256 via RIP-7212 |
+
+Everything else — field names, event shape, UID inputs, error set — is kept 1:1 so
+the SDK, indexer, and docs stay chain-agnostic.
+
+## Design stance
+
+No admin, no upgrade path. The registries are immutable; all policy (fees, gating,
+one-per-human rules) lives in resolver contracts that anyone can deploy and any
+schema can point at. Reading and referencing an attestation needs no permission
+and no API key.
+
+<Card title="Quickstart" icon="rocket" href="/monad/quickstart">
+  Install the SDK and write your first attestation on Monad.
+</Card>

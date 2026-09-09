@@ -1,0 +1,81 @@
+---
+title: 'Passkey Proof of Personhood'
+description: 'Turn a device passkey into an on-chain personhood attestation, verified through the RIP-7212 P-256 precompile'
+---
+
+A person proves they control a **device passkey** (WebAuthn / FIDO2). The passkey
+signature is verified **on chain** by `PasskeyAttester`, which then writes a
+`proof-of-personhood` attestation. No seed phrase, no centralised issuer, and
+anyone can relay the transaction — the person pays nothing.
+
+## Why this shape
+
+- **P-256 on chain is cheap on Monad.** `PasskeyAttester` verifies through
+  OpenZeppelin's `P256.verify`, which uses the RIP-7212 precompile at `0x100`
+  (confirmed present on Monad testnet) with a Solidity fallback.
+- **Not capturable.** `PasskeyAttester` and `PersonhoodResolver` are immutable and
+  admin-less. The `PersonhoodResolver` locks the schema so `PasskeyAttester` is the
+  *only* address that can attest against it — every personhood attestation is
+  therefore backed by a verified assertion.
+- **Uniqueness is enforced twice**: one enrolment per passkey credential, one
+  attestation per subject address.
+
+## Flow
+
+<Steps>
+  <Step title="Read the passkey public key">
+    From registration (`navigator.credentials.create`), take the P-256 key:
+    ```ts
+    import { parseP256PublicKey } from '@signetprotocol/evm-sdk'
+    const { x, y } = parseP256PublicKey(attestationResponse.getPublicKey())
+    ```
+  </Step>
+  <Step title="Build the challenge">
+    ```ts
+    const challenge = signet.personhoodChallenge(subject, x, y)
+    // = abi.encode(SIGNET_PERSONHOOD_V1, chainId, PasskeyAttester, subject, x, y)
+    ```
+    This is exactly what `PasskeyAttester.challenge(subject, x, y)` returns on chain.
+  </Step>
+  <Step title="Sign with the passkey">
+    ```ts
+    const assertion = await navigator.credentials.get({
+      publicKey: { challenge: hexToBytes(challenge), allowCredentials: [/* credId */], /* … */ },
+    })
+    ```
+  </Step>
+  <Step title="Relay">
+    ```ts
+    import { assertionFromCredential } from '@signetprotocol/evm-sdk'
+    const auth = assertionFromCredential(assertion) // -> WebAuthnAuth tuple
+    const { uid } = await signet.attestPersonhood({ subject, x, y, auth })
+    ```
+    `assertionFromCredential` decodes the DER signature to low-s `(r, s)` and
+    records the `clientDataJSON` member offsets so on-chain verification is
+    fixed-cost.
+  </Step>
+</Steps>
+
+## Verify
+
+```ts
+const uid = await signet.personhoodOf(address) // bytes32(0) if none
+const ok = await signet.isValid(uid)
+```
+
+Anyone can run this — it reads `PasskeyAttester.personhoodOf` and the attestation
+registry directly. No API key, no middleman.
+
+## On-chain checks (`WebAuthn.verify`)
+
+1. `s` is low (`s ≤ N/2`) — non-malleable.
+2. `clientDataJSON` declares `"type":"webauthn.get"`.
+3. `clientDataJSON` carries `"challenge":"<base64url(challenge)>"`.
+4. authenticator flags: User Present set (User Verified too, if the deployment requires it).
+5. `P256.verify(sha256(authenticatorData ‖ sha256(clientDataJSON)), r, s, x, y)`.
+
+## Live example
+
+The [personhood demo](https://signet-personhood.vercel.app) runs this end to end:
+create a passkey, one tap, on-chain attestation — with a server relayer so the
+visitor needs no wallet.

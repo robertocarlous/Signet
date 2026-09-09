@@ -1,0 +1,101 @@
+---
+title: 'Monad Quickstart'
+description: 'Register a schema and write direct + delegated attestations on Monad with @signetprotocol/evm-sdk'
+---
+
+## Prerequisites
+
+- Node.js 18+
+- A Monad testnet wallet with MON ([faucet](https://faucet.monad.xyz))
+
+## Install
+
+```bash
+npm install @signetprotocol/evm-sdk viem
+```
+
+## Client
+
+```ts
+import { createPublicClient, createWalletClient, http } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
+import { SignetClient } from '@signetprotocol/evm-sdk'
+
+const transport = http('https://rpc.ankr.com/monad_testnet')
+const account = privateKeyToAccount(process.env.PRIVATE_KEY as `0x${string}`)
+
+const signet = new SignetClient({
+  chain: 'monadTestnet', // bundles the deployed addresses
+  publicClient: createPublicClient({ transport }),
+  walletClient: createWalletClient({ account, transport }),
+})
+```
+
+## Register a schema
+
+```ts
+const { uid: schemaUID } = await signet.registerSchema({
+  definition: 'bool verified,string level',
+  revocable: true,
+  // resolver: '0x…',  // optional policy contract
+})
+```
+
+`schemaUID` is deterministic — `signet.computeSchemaUid({ definition, authority, revocable })`
+gives you the same value without a transaction.
+
+## Attest
+
+```ts
+import { encodeAbiParameters } from 'viem'
+
+const data = encodeAbiParameters(
+  [{ type: 'bool' }, { type: 'string' }],
+  [true, 'premium'],
+)
+
+const { uid } = await signet.attest({
+  schemaUID,
+  subject: '0xSubject…',
+  data,
+})
+
+await signet.isValid(uid)         // true
+await signet.getAttestation(uid)  // full record
+```
+
+## Delegated attestation (relayer pays gas)
+
+```ts
+// signer — offline, no gas
+const request = await signet.signDelegatedAttestation({
+  schemaUID,
+  subject: '0xSubject…',
+  data,
+})
+
+// relayer — anywhere, pays gas
+const { uid } = await signet.submitDelegatedAttestation(request)
+```
+
+The signer never touches the chain. `request` is a plain object you can POST to a
+relayer. Nonce and deadline are filled in for you (override via the options).
+
+## Revoke
+
+```ts
+await signet.revoke(uid) // msg.sender must be the attester; schema must be revocable
+```
+
+## CLI
+
+```bash
+npm install -g @signetprotocol/cli
+
+signet schema      --chain=monad --action=create --json-file=schema.json --key-file=key.txt
+signet attestation --chain=monad --action=create --json-file=att.json    --key-file=key.txt
+```
+
+<Card title="Passkey personhood" icon="fingerprint" href="/monad/passkey-personhood">
+  Verify a real device holder on chain — no wallet, no seed phrase.
+</Card>

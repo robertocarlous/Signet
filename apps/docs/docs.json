@@ -50,6 +50,15 @@
             ]
           },
           {
+            "group": "Monad",
+            "pages": [
+              "monad/overview",
+              "monad/quickstart",
+              "monad/passkey-personhood",
+              "monad/why-signet"
+            ]
+          },
+          {
             "group": "Examples",
             "pages": [
               "examples/react-integration",

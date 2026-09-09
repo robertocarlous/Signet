@@ -1,0 +1,56 @@
+---
+title: 'Why Signet, not your own registry'
+description: 'What you get from a shared attestation layer that you lose by rolling your own contract'
+---
+
+You could write a `mapping(address => bool) verified` in an afternoon. Here is
+what that costs you later, and what Signet gives you instead.
+
+## A shared namespace
+
+A Signet attestation is portable. A credential issued for your app is readable by
+every other app on the same registry, with the same UID scheme and the same
+events. Your own mapping is an island — every integrator has to learn your
+bespoke shape, and nothing composes.
+
+## Verifiers, not just issuers
+
+The value of an attestation is how many places accept it. Signet's read side is
+permissionless and already has tooling — SDK, CLI, indexer, a live verifier. A
+private mapping starts with an audience of one.
+
+## Delegation and passkeys, done once
+
+- **EIP-712 delegated attest/revoke** — signer is offline, a relayer pays gas.
+  Correct typed-data hashing, nonce and deadline replay protection, malleability
+  checks. Easy to get subtly wrong.
+- **WebAuthn / P-256 personhood** — `clientDataJSON` parsing, base64url challenge
+  binding, low-s normalisation, RIP-7212 precompile use. This is the part judges
+  and auditors look at hardest; Signet ships it verified and live.
+
+## Resolver extensibility
+
+Need per-attestation fees, an allowlist, a rate limit, a reward drop? Write a
+resolver and point a schema at it. The core never changes, so your policy can't
+break the primitive and vice-versa.
+
+## Immutability as a feature
+
+No admin key on the registries means no admin key to leak, phish, or govern.
+Integrators can depend on the behaviour not changing under them.
+
+## Who this is for
+
+| Adopter | Why Signet |
+| --- | --- |
+| AI agent frameworks (ERC-8004) | a ready reputation / validation feed, not a bespoke store |
+| AI content tools | portable, on-chain certificates of origin that survive platform migration |
+| DeFi / RWA | reusable KYC / accreditation attestations instead of re-verifying per app |
+| DAO & community tooling | skill and contribution credentials any app can check |
+| Consumer apps needing "is this a real person" | one-tap passkey personhood, no wallet onboarding |
+
+## When to roll your own
+
+If the claim never leaves your database and no one else will ever verify it, a
+mapping is fine. The moment a second party needs to trust it, you want a shared
+layer.
