@@ -120,6 +120,24 @@ curl "https://signet-horizon.vercel.app/api/queue/status"
 curl "https://signet-horizon.vercel.app/api/health"
 ```
 
+## Monad (EVM) read gateway — `/api/monad`
+
+A database-free read surface over the Signet contracts on Monad testnet
+(chain 10143). No Postgres required for these routes; they proxy `eth_getLogs`
+and contract reads (via `@signetprotocol/evm-sdk`), scanning backward in
+100-block windows to stay within public-RPC limits. Set `MONAD_RPC_URL` to
+override the RPC.
+
+```bash
+curl "$HOST/api/monad/health"
+curl "$HOST/api/monad/contracts"
+curl "$HOST/api/monad/schemas?limit=50"
+curl "$HOST/api/monad/schemas/0x<uid>"
+curl "$HOST/api/monad/attestations?limit=50&subject=0x…&schemaUID=0x…"
+curl "$HOST/api/monad/attestations/0x<uid>"
+curl "$HOST/api/monad/personhood/0x<address>"
+```
+
 ## Prerequisites
 
 - Node.js 16+
