@@ -19,6 +19,10 @@ stay chain-agnostic.
 Canonical machine-readable copy: [`deployments.json`](./deployments.json).
 Source verification on MonadScan is pending an API key (`forge script … --verify`).
 
+**Verified live end-to-end** — a `proof-of-personhood` schema
+(`0xb17ffe44…856a88c2`) was registered and a self-attestation
+(`0xe926e6e2…027d92e6`) created and read back as valid on chain 10143.
+
 ## Layout
 
 ```
