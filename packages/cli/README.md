@@ -1,6 +1,6 @@
 # @signetprotocol/cli
 
-Unified CLI for Signet across all supported blockchains (Stellar, Solana, Starknet).
+Unified CLI for Signet. Supported chains: **Stellar** (Soroban) and **Monad** (EVM).
 
 ## Installation
 
@@ -10,13 +10,34 @@ npm install -g @signetprotocol/cli
 
 ## Usage
 
-The CLI provides a unified interface for interacting with the Signet across different blockchains. All commands require a `--chain` parameter to specify which blockchain to use.
+Every command takes `--chain=<stellar|monad>`. The binary is `signet`.
 
 ### Basic Syntax
 
 ```bash
-attest <command> --chain=<stellar|solana|starknet> [options]
+signet <command> --chain=<stellar|monad> [options]
 ```
+
+### Monad (EVM)
+
+Targets Monad testnet (chain 10143) by default; override the RPC with `--url`.
+The `--key-file` is a `0x`-prefixed private key (plain text) or a JSON `{ "privateKey": "0x…" }`.
+
+```bash
+# register a schema  (schema.json: { "definition": "bool verified,string level", "revocable": true, "resolver": "0x…"? })
+signet schema --chain=monad --action=create --json-file=schema.json --key-file=key.txt
+
+signet schema --chain=monad --action=fetch --uid=0x… --key-file=key.txt
+
+# create an attestation  (att.json: { "schemaUID": "0x…", "subject": "0x…", "data": "0x…", "expirationTime"?: 0 })
+signet attestation --chain=monad --action=create --json-file=att.json --key-file=key.txt
+
+signet attestation --chain=monad --action=fetch  --uid=0x… --key-file=key.txt
+signet attestation --chain=monad --action=revoke --uid=0x… --key-file=key.txt
+```
+
+Passkey proof-of-personhood needs a browser WebAuthn ceremony — use
+[`@signetprotocol/evm-sdk`](../evm-sdk) or the [personhood demo](../../apps/personhood).
 
 ### Commands
 

@@ -1,5 +1,6 @@
 import { BaseHandler } from './base'
 import { StellarHandler } from './stellar'
+import { MonadHandler } from './monad'
 import { handleKeyFile, validateChain } from '../utils'
 import { logger } from '../logger'
 import { red } from 'picocolors'
@@ -10,11 +11,11 @@ export const getHandler = async (
   url?: string
 ): Promise<BaseHandler | null> => {
   if (!validateChain(chain)) {
-    logger.log(red(`Unsupported chain: ${chain}. Supported chains: stellar`))
+    logger.log(red(`Unsupported chain: ${chain}. Supported chains: stellar, monad`))
     return null
   }
 
-  const handler = new StellarHandler()
+  const handler: BaseHandler = chain === 'monad' ? new MonadHandler() : new StellarHandler()
 
   try {
     const keyData = await handleKeyFile(keyFile)
@@ -31,4 +32,4 @@ export const getHandler = async (
   }
 }
 
-export { BaseHandler, StellarHandler }
+export { BaseHandler, StellarHandler, MonadHandler }
