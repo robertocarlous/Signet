@@ -24,6 +24,7 @@ packages/
   cli/            # CLI for Stellar
   core/           # Core SDK abstractions
   stellar-sdk/    # Stellar-specific SDK implementation
+  evm-sdk/        # Signet SDK for Monad/EVM (viem): schemas, EIP-712 delegation, passkey personhood
 examples/         # Example implementations
 ```
 

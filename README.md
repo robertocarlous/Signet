@@ -178,6 +178,7 @@ signet/
 ├── packages/
 │   ├── sdk/           # Unified TypeScript SDK
 │   ├── stellar-sdk/   # Stellar-specific SDK implementation
+│   ├── evm-sdk/       # Signet SDK for Monad/EVM (viem)
 │   ├── cli/           # CLI tool
 │   └── core/          # Core SDK abstractions
 └── examples/

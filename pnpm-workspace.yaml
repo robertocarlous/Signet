@@ -1,9 +1,10 @@
 packages:
-- apps/*
-- packages/*
-- contracts/**
-- '!**/test/**'
-- '!**/examples/**'
+  - apps/*
+  - packages/*
+  - contracts/**
+  - '!**/test/**'
+  - '!**/examples/**'
+  - '!contracts/**/lib/**'
 overrides:
   adm-zip@<1: '>=0.6.0 <1'
   axios@1: '>=1.18.0 <2'
@@ -57,8 +58,10 @@ allowBuilds:
   '@prisma/engines': true
   bufferutil: true
   esbuild: true
+  keccak: false
   keytar: true
   prisma: true
   puppeteer: true
+  secp256k1: false
   unrs-resolver: true
   utf-8-validate: true

@@ -1,0 +1,61 @@
+{
+  "name": "@signetprotocol/evm-sdk",
+  "description": "TypeScript SDK for Signet attestations on Monad (EVM): schemas, direct & EIP-712 delegated attestations, and WebAuthn/P-256 passkey personhood",
+  "version": "0.1.0",
+  "author": "daccred",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "keywords": [
+    "attestation",
+    "monad",
+    "evm",
+    "webauthn",
+    "passkey",
+    "eip712",
+    "sdk"
+  ],
+  "repository": "robertocarlous/Signet.git",
+  "homepage": "https://github.com/robertocarlous/Signet#readme",
+  "bugs": "https://github.com/robertocarlous/Signet/issues",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup",
+    "clean": "rimraf dist",
+    "dev": "tsup --watch",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "typecheck": "tsc --noEmit --pretty",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@noble/curves": "^2.0.1",
+    "@noble/hashes": "^2.0.1"
+  },
+  "peerDependencies": {
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.2",
+    "prettier": "^3.8.2",
+    "rimraf": "^6.1.3",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "viem": "^2.21.0",
+    "vitest": "^4.1.8"
+  }
+}
