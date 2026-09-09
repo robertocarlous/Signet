@@ -2,7 +2,7 @@
 
 <div align="center">
 
-<img src=".github/logo.png" alt="Signet" width="620" />
+<img src=".github/logo.jpg" alt="Signet" width="620" />
 
 **The attestation layer for an AI-native internet — on Monad**
 
