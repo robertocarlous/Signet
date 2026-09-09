@@ -18,8 +18,9 @@ tab_width = 4
 bracket_spacing = true
 int_types = "long"
 
+# Monad testnet — chain id 10143, symbol MON, explorer https://testnet.monadscan.com
 [rpc_endpoints]
-monad_testnet = "${MONAD_TESTNET_RPC_URL}"
+monad_testnet = "https://testnet-rpc.monad.xyz"
 
 [etherscan]
-monad_testnet = { key = "${MONAD_ETHERSCAN_API_KEY}", url = "${MONAD_ETHERSCAN_URL}" }
+monad_testnet = { key = "${MONADSCAN_API_KEY}", url = "https://api-testnet.monadscan.com/api", chain = 10143 }
