@@ -13,6 +13,7 @@ Blockchain-based attestation infrastructure enabling verifiable claims on Stella
 apps/
   horizon/         # Stellar blockchain indexer (Express.js + MongoDB)
   docs/            # Documentation site (Mintlify)
+  personhood/      # Passkey proof-of-personhood demo (Next.js, Monad testnet)
 contracts/
   stellar/        # Soroban contracts (protocol & resolvers)
   evm/            # Solidity port targeting Monad (Foundry)

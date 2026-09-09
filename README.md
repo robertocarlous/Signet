@@ -171,7 +171,8 @@ The repository follows a monorepo structure using pnpm workspaces:
 signet/
 ├── apps/
 │   ├── docs/          # Documentation site (Mintlify)
-│   └── horizon/       # Stellar blockchain indexer (Express.js + MongoDB)
+│   ├── horizon/       # Stellar blockchain indexer (Express.js + MongoDB)
+│   └── personhood/    # Passkey proof-of-personhood demo (Next.js, Monad testnet)
 ├── contracts/
 │   ├── stellar/       # Soroban contracts (protocol, resolvers)
 │   └── evm/           # Solidity port targeting Monad (Foundry)
