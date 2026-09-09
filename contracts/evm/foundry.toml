@@ -19,8 +19,9 @@ bracket_spacing = true
 int_types = "long"
 
 # Monad testnet — chain id 10143, symbol MON, explorer https://testnet.monadscan.com
+# Alternates if this rate-limits: https://rpc-testnet.monadinfra.com | https://testnet-rpc.monad.xyz
 [rpc_endpoints]
-monad_testnet = "https://testnet-rpc.monad.xyz"
+monad_testnet = "https://rpc.ankr.com/monad_testnet"
 
 [etherscan]
 monad_testnet = { key = "${MONADSCAN_API_KEY}", url = "https://api-testnet.monadscan.com/api", chain = 10143 }
