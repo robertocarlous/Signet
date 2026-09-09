@@ -1,0 +1,50 @@
+{
+  "name": "@signetprotocol/core",
+  "description": "Core abstractions and interfaces for Signet SDKs",
+  "version": "2.0.2",
+  "author": "daccred",
+  "bugs": "https://github.com/daccred/signet/issues",
+  "devDependencies": {
+    "@types/node": "^24.12.2",
+    "prettier": "^3.8.2",
+    "rimraf": "^6.1.3",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.8"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "homepage": "https://github.com/daccred/signet#readme",
+  "keywords": [
+    "abstract",
+    "attestation",
+    "blockchain",
+    "core",
+    "sdk"
+  ],
+  "license": "MIT",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": "daccred/signet.git",
+  "scripts": {
+    "build": "pnpm clean && tsup",
+    "clean": "rimraf dist",
+    "dev": "tsup --watch",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage"
+  },
+  "types": "dist/index.d.ts"
+}

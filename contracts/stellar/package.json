@@ -1,0 +1,68 @@
+{
+  "name": "@signetprotocol/stellar-contracts",
+  "description": "Stellar Attestation Service",
+  "version": "3.0.0",
+  "author": "",
+  "dependencies": {
+    "@noble/curves": "^2.0.1",
+    "@noble/hashes": "^2.0.1",
+    "buffer": "6.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.2",
+    "js-sha3": "^0.9.3",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.8"
+  },
+  "exports": {
+    "./protocol": {
+      "types": "./dist/protocol.d.ts",
+      "import": "./dist/protocol.js",
+      "require": "./dist/protocol.js"
+    },
+    "./registry": {
+      "types": "./dist/registry.d.ts",
+      "import": "./dist/registry.js",
+      "require": "./dist/registry.js"
+    },
+    "./contracts.json": "./dist/contracts.json"
+  },
+  "files": [
+    "dist/",
+    "deployments.json"
+  ],
+  "keywords": [
+    "attestation",
+    "bindings",
+    "smart-contracts",
+    "soroban",
+    "stellar"
+  ],
+  "license": "MIT",
+  "main": "./dist/protocol.js",
+  "peerDependencies": {
+    "@stellar/stellar-sdk": ">=16.0.0 <17"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "echo 'Use make clean in individual contract directories'",
+    "sync-deployments": "bash scripts/sync-deployments.sh",
+    "sync-networks": "node scripts/sync-networks.mjs",
+    "test": "vitest"
+  },
+  "type": "module",
+  "types": "./dist/protocol.d.ts",
+  "typesVersions": {
+    "*": {
+      "registry": [
+        "./dist/registry.d.ts"
+      ],
+      "protocol": [
+        "./dist/protocol.d.ts"
+      ]
+    }
+  }
+}

@@ -1,0 +1,269 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model HorizonEvent {
+  id          String   @id @default(uuid())
+  eventId     String   @unique
+  ledger      Int
+  timestamp   DateTime
+  contractId  String
+  eventType   String
+  eventData   Json
+  txHash      String?
+  txEnvelope  String
+  txResult    String
+  txMeta      String
+  txFeeBump   Boolean  @default(false)
+  txStatus    String
+  txCreatedAt DateTime
+  inSuccessfulContractCall String?
+  
+  // Relations
+  transaction HorizonTransaction? @relation(fields: [txHash], references: [hash])
+  operation HorizonOperation? @relation(fields: [operationId], references: [operationId])
+  operationId String?
+  
+  // Indexer metadata
+  ingestedAt  DateTime @default(now())
+  
+  @@index([ledger])
+  @@index([contractId])
+  @@index([timestamp])
+  @@index([eventType])
+  @@index([txHash])
+  @@map("horizon_events")
+}
+
+model HorizonTransaction {
+  id                String   @id @default(uuid())
+  hash              String   @unique
+  ledger            Int
+  timestamp         DateTime
+  sourceAccount     String
+  fee               String
+  operationCount    Int
+  envelope          Json
+  result            Json
+  meta              Json
+  feeBump           Boolean  @default(false)
+  successful        Boolean
+  memo              String?
+  memoType          String?
+  
+  // Gas and resource usage
+  inclusionFee      String?
+  resourceFee       String?
+  sorobanResourceUsage Json?
+  
+  // Relations
+  events           HorizonEvent[]
+  payments         HorizonPayment[]
+  
+  // Indexer metadata
+  ingestedAt        DateTime @default(now())
+  
+  @@index([ledger])
+  @@index([timestamp])
+  @@index([sourceAccount])
+  @@index([successful])
+  @@map("horizon_transactions")
+}
+
+model HorizonAccount {
+  id              String   @id @default(uuid())
+  accountId       String   @unique
+  sequence        String
+  balances        Json
+  signers         Json
+  data            Json
+  flags           Int
+  homeDomain      String?
+  thresholds      Json
+  
+  // Contract-specific fields
+  isContract      Boolean  @default(false)
+  contractCode    String?
+  
+  // Metrics
+  operationCount  Int      @default(0)
+  lastActivity    DateTime?
+  
+  // Indexer metadata
+  ingestedAt      DateTime @default(now())
+  lastUpdated     DateTime @updatedAt
+  
+  @@index([isContract])
+  @@index([lastActivity])
+  @@map("horizon_accounts")
+}
+
+model HorizonPayment {
+  id              String   @id @default(uuid())
+  paymentId       String   @unique
+  transactionHash String
+  operationId     String
+  from            String
+  to              String
+  asset           Json
+  amount          String
+  timestamp       DateTime
+  
+  // Relations
+  transaction     HorizonTransaction @relation(fields: [transactionHash], references: [hash])
+  
+  // Indexer metadata
+  ingestedAt      DateTime @default(now())
+  
+  @@index([from])
+  @@index([to])
+  @@index([timestamp])
+  @@index([transactionHash])
+  @@map("horizon_payments")
+}
+
+// Enhanced model for contract-specific operations tracking
+model HorizonOperation {
+  id                String   @id @default(uuid())
+  operationId       String   @unique
+  transactionHash   String
+  contractId        String   // Which specific contract this operation targets
+  operationType     String   // e.g., "invoke_host_function", "restore_footprint"
+  successful        Boolean  @default(true)
+  sourceAccount     String
+  operationIndex    Int      @default(0)
+  
+  // Enhanced contract-specific data
+  function          String?  // Contract function called
+  parameters        Json?    // Function parameters
+  details           Json     // Full operation details
+  
+  // Relations
+  events            HorizonEvent[]     // Events emitted by this operation
+  
+  // Indexer metadata  
+  ingestedAt        DateTime @default(now())
+  
+  @@index([contractId])
+  @@index([operationType])
+  @@index([successful])
+  @@index([sourceAccount])
+  @@index([transactionHash])
+  @@map("horizon_operations")
+}
+
+model HorizonIndexerState {
+  id                    String   @id @default(uuid())
+  lastProcessedLedger   Int
+  lastProcessedAt       DateTime
+  syncStatus            String   // "syncing", "synced", "error"
+  errorMessage          String?
+  
+  // Performance metrics
+  eventsPerSecond       Float?
+  ledgersPerMinute      Float?
+  
+  updatedAt             DateTime @updatedAt
+  
+  @@map("horizon_indexer_state")
+}
+
+model Attestation {
+  id                String   @id @default(uuid())
+  attestationUid    String   @unique
+  ledger            Int
+  schemaUid         String
+  attesterAddress   String
+  subjectAddress    String?
+  transactionHash   String
+  schemaEncoding    String   // "XDR" or "JSON"
+  message           String   // Raw JSON value or message
+  value             Json?    // Optional parsed fields
+  revoked           Boolean  @default(false)
+  contractAddress   String   // Contract that emitted this attestation
+
+  // Timestamps
+  createdAt         DateTime?  // Nullable - should be filled with blockchain timestamp
+  revokedAt         DateTime?
+
+  // Relations - keeping schemaUid as regular field without foreign key constraint
+  // This allows attestations to reference schemas by UID without database-level enforcement
+
+  // Indexer metadata
+  ingestedAt        DateTime @default(now())
+  lastUpdated       DateTime @updatedAt
+
+  @@index([ledger])
+  @@index([schemaUid])
+  @@index([attesterAddress])
+  @@index([subjectAddress])
+  @@index([revoked])
+  @@index([createdAt])
+  @@index([contractAddress])
+  @@map("attestations")
+}
+
+model Schema {
+  id                        String   @id @default(uuid())
+  uid                       String   @unique
+  ledger                    Int
+  schemaDefinition          String   // Schema definition from the contract
+  parsedSchemaDefinition    Json?    // Parsed fields
+  resolverAddress           String?
+  revocable                 Boolean  @default(true)
+  deployerAddress           String
+  type                      String   @default("default") // Category label
+  transactionHash           String
+  contractAddress           String   // Contract that registered this schema
+
+  // Timestamps
+  createdAt                 DateTime?  // Nullable - should be filled with blockchain timestamp
+
+  // Relations - removed to eliminate foreign key constraints
+  // attestations can still reference schemas via schemaUid field
+
+  // Indexer metadata
+  ingestedAt                DateTime @default(now())
+  lastUpdated               DateTime @updatedAt
+  category                  String   @default("default")
+  featured                  Boolean  @default(false)
+
+  @@index([ledger])
+  @@index([deployerAddress])
+  @@index([type])
+  @@index([createdAt])
+  @@index([contractAddress])
+  @@map("schemas")
+}
+
+model Transaction {
+  id                String   @id @default(uuid())
+  action            String   // eventType (SCHEMA:REGISTER, ATTEST:CREATE, ATTEST:REVOKE, BLS_KEY_0x0_REGISTER)
+  transactionHash   String   // Transaction hash from blockchain
+  timestamp         DateTime // When the event occurred
+  sourceAccount     String   // Account that initiated the transaction
+  contractId        String   // Contract that emitted the event
+  operationId       String?  // Related operation ID if available
+  
+  // Additional metadata
+  ledger            Int?     // Ledger number
+  eventId           String?  @unique // Reference to HorizonEvent if needed
+  metadata          Json?    // Additional event-specific data
+  
+  // Timestamps
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@index([action])
+  @@index([transactionHash])
+  @@index([sourceAccount])
+  @@index([contractId])
+  @@index([timestamp])
+  @@index([ledger])
+  @@map("transactions")
+}

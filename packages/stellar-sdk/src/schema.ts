@@ -1,0 +1,236 @@
+/**
+ * Schema operations for the Stellar Signet
+ */
+
+import {
+  SignetProtocolResponse,
+  Schema,
+  SchemaDefinition,
+  ListSchemasByIssuerParams,
+  PaginatedResponse,
+  SignetProtocolErrorType,
+  createSuccessResponse,
+  createErrorResponse,
+  createSignetProtocolError,
+} from '@signetprotocol/core'
+
+import { Client as ProtocolClient } from '@signetprotocol/stellar-contracts/protocol'
+import { Address } from '@stellar/stellar-sdk'
+import { StellarConfig } from './types'
+import { SorobanSchemaEncoder, StellarSchemaDefinition } from './common/schemaEncoder'
+
+export class StellarSchemaRegistry {
+  private protocolClient: ProtocolClient
+  private publicKey: string
+
+  constructor(config: StellarConfig, protocolClient: ProtocolClient) {
+    this.protocolClient = protocolClient
+    this.publicKey = config.publicKey
+  }
+
+  /**
+   * Create a new schema using structured schema definition with validation
+   */
+  async createStructuredSchema(
+    schemaDefinition: StellarSchemaDefinition,
+    options?: {
+      resolver?: string
+      revocable?: boolean
+      format?: 'xdr' | 'json'
+    }
+  ): Promise<SignetProtocolResponse<Schema>> {
+    try {
+      // Validate and encode the structured schema
+      const encoder = new SorobanSchemaEncoder(schemaDefinition)
+
+      // Choose encoding format
+      let schemaString: string
+      switch (options?.format || 'xdr') {
+        case 'xdr':
+          schemaString = encoder.toXDR()
+          break
+        case 'json':
+          schemaString = JSON.stringify(schemaDefinition)
+          break
+        default:
+          schemaString = encoder.toXDR()
+      }
+
+      // Use the standard createSchema method with encoded string
+      return await this.createSchema({
+        name: schemaDefinition.name,
+        content: schemaString,
+        resolver: options?.resolver,
+        revocable: options?.revocable ?? true,
+      })
+    } catch (error: any) {
+      return createErrorResponse(
+        createSignetProtocolError(
+          SignetProtocolErrorType.VALIDATION_ERROR,
+          `Schema validation failed: ${error.message}`
+        )
+      )
+    }
+  }
+
+  /**
+   * Create a new schema on the Stellar network (accepts raw string or structured definition)
+   */
+  async createSchema(config: SchemaDefinition): Promise<SignetProtocolResponse<any>> {
+    try {
+      const validationError = this.validateSchemaDefinition(config)
+      if (validationError) return createErrorResponse(validationError)
+
+      const caller = this.publicKey
+      const schemaDefinition = config.content
+      const resolver = config.resolver || undefined
+      const revocable = config.revocable ?? true
+
+      const tx = await this.protocolClient.register({
+        caller,
+        resolver: resolver || undefined,
+        schema_definition: schemaDefinition,
+        revocable,
+      })
+
+      const result = await tx.signAndSend()
+
+      // Return the full result for SDK consumers to decide what they need
+      return createSuccessResponse(result)
+    } catch (error: any) {
+      return createErrorResponse(
+        createSignetProtocolError(SignetProtocolErrorType.NETWORK_ERROR, error.message || 'Failed to create schema')
+      )
+    }
+  }
+
+  /**
+   * Fetch a schema by its UID
+   */
+  async fetchSchemaById(id: string): Promise<SignetProtocolResponse<any>> {
+    try {
+      if (!/^[0-9a-fA-F]{64}$/.test(id)) {
+        throw createSignetProtocolError(
+          SignetProtocolErrorType.VALIDATION_ERROR,
+          'Invalid schema UID format. Expected a 64-character hex string.'
+        )
+      }
+
+      const schemaUid = Buffer.from(id, 'hex')
+
+      // Note: The current protocol contract doesn't have a get_schema method
+      // This would need to be implemented in the contract or we'd need to use events/indexing
+      // For now, return null to indicate schema not found/not supported
+      return createSuccessResponse(null)
+    } catch (error: any) {
+      return createErrorResponse(
+        createSignetProtocolError(SignetProtocolErrorType.NETWORK_ERROR, error.message || 'Failed to fetch schema')
+      )
+    }
+  }
+
+  /**
+   * Parse a schema definition string into structured format if possible
+   */
+  parseSchemaDefinition(schemaString: string): {
+    encoder: SorobanSchemaEncoder | null
+    format: 'xdr' | 'json' | 'unknown'
+  } {
+    // Try XDR format first
+    if (schemaString.startsWith('XDR:')) {
+      try {
+        const encoder = SorobanSchemaEncoder.fromXDR(schemaString)
+        return { encoder, format: 'xdr' }
+      } catch {
+        return { encoder: null, format: 'unknown' }
+      }
+    }
+
+    // Try JSON format
+    try {
+      const parsed = JSON.parse(schemaString)
+
+      // Check if it looks like our structured format
+      if (parsed.name && parsed.version && parsed.fields && Array.isArray(parsed.fields)) {
+        const encoder = new SorobanSchemaEncoder(parsed as StellarSchemaDefinition)
+        return { encoder, format: 'json' }
+      }
+    } catch {
+      // Not JSON
+    }
+
+    return { encoder: null, format: 'unknown' }
+  }
+
+  /**
+   * Create a schema encoder from a schema UID (fetch from contract and parse)
+   */
+  async createEncoderFromSchema(schemaUID: string): Promise<
+    SignetProtocolResponse<{
+      encoder: SorobanSchemaEncoder | null
+      format: 'xdr' | 'json' | 'unknown'
+    }>
+  > {
+    try {
+      const schemaResponse = await this.fetchSchemaById(schemaUID)
+      if (schemaResponse.error || !schemaResponse.data) {
+        return createSuccessResponse({ encoder: null, format: 'unknown' })
+      }
+
+      const parsed = this.parseSchemaDefinition(schemaResponse.data.definition)
+      return createSuccessResponse(parsed)
+    } catch (error: any) {
+      return createErrorResponse(
+        createSignetProtocolError(
+          SignetProtocolErrorType.VALIDATION_ERROR,
+          `Failed to create encoder: ${error.message}`
+        )
+      )
+    }
+  }
+
+  /**
+   * List schemas by issuer
+   */
+  async listSchemasByIssuer(
+    params: ListSchemasByIssuerParams
+  ): Promise<SignetProtocolResponse<PaginatedResponse<Schema>>> {
+    try {
+      // This would require indexing or event querying in a real implementation
+      // For now, return empty results
+      const emptyResponse: PaginatedResponse<Schema> = {
+        items: [],
+        total: 0,
+        limit: params.limit ?? 10,
+        offset: params.offset ?? 0,
+        hasMore: false,
+      }
+
+      return createSuccessResponse(emptyResponse)
+    } catch (error: any) {
+      return createErrorResponse(
+        createSignetProtocolError(SignetProtocolErrorType.NETWORK_ERROR, error.message || 'Failed to list schemas')
+      )
+    }
+  }
+
+  /**
+   * Validate schema definition
+   */
+  private validateSchemaDefinition(config: SchemaDefinition): any {
+    if (!config.content || config.content.trim() === '') {
+      return createSignetProtocolError(SignetProtocolErrorType.VALIDATION_ERROR, 'Schema content is required')
+    }
+
+    if (config.resolver) {
+      try {
+        Address.fromString(config.resolver)
+      } catch {
+        return createSignetProtocolError(SignetProtocolErrorType.VALIDATION_ERROR, 'Invalid resolver address format')
+      }
+    }
+
+    return null
+  }
+}
+

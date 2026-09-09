@@ -1,0 +1,8 @@
+{"name":"digitalWalletIdentitySchema","uid":"c302fb87a592eb86b492c05319305cc92a3cd169d1f1da6d2e5a5850ce133f96","category":"identity"}
+{"name":"nationalIdSchema","uid":"3b790496ad4992710bb964183299b809d23761128591b7bd75687906dda00c26","category":"identity"}
+{"name":"passportSchema","uid":"ccf8893f30d2bf4bd011b1e3a9b6ad446c219b1ebc2f661eac603b7b52f2046b","category":"identity"}
+{"name":"biometricAuthSchema","uid":"806707060eab7d33e9204f8df5058c8d04c4640cb0d03ac3cef02dbd11eb02e8","category":"identity"}
+{"name":"ageVerificationSchema","uid":"4ec785da8dad356c97e2f61f88394fb185fbc1cecf60dccc6d8a5e640283b0fb","category":"identity"}
+{"name":"trustScoreSchema","uid":"0faaa503ffcb9be6fdb2a671c5ec050eab2c67ea8a8f79c185d99836e7318d85","category":"identity"}
+{"name":"backgroundCheckSchema","uid":"730b514def52db840638a65f842001c5086965fb7ca7fb93b6b49c59835e28ac","category":"identity"}
+{"name":"multiFactorAuthenticationSchema","uid":"13276a864ad893d349f43d24ff9e4e2acdf45e097218608cae7cf7b34fa03bbe","category":"identity"}

@@ -1,0 +1,223 @@
+/**
+ * Data ingestion control router for managing blockchain synchronization.
+ *
+ * Provides endpoints for triggering and monitoring blockchain data ingestion
+ * processes. Supports manual triggering, queue management, and comprehensive
+ * data collection operations for maintaining database synchronization with
+ * the blockchain.
+ *
+ * @module router/ingest
+ * @requires express
+ * @requires common/queue
+ * @requires repository/contracts
+ * @requires common/constants
+ */
+
+import { Router, Request, Response } from 'express'
+import { ingestQueue } from '../common/queue'
+import { performBackfill } from '../repository/backfill.repository'
+import { CONTRACT_IDS_TO_INDEX } from '../common/constants'
+
+// Route constants for ingest endpoints
+const INGEST_EVENTS_ROUTE = '/events'
+const INGEST_BACKFILL_ROUTE = '/backfill'
+const INGEST_RECURRING_ROUTE = '/recurring'
+
+const router = Router()
+
+/**
+ * POST /ingest/events - Enqueue event-only ingestion job.
+ *
+ * Fetches only contract events from the blockchain. Lightweight ingestion
+ * focused on event data without operations or transaction details.
+ * Returns the job ID for tracking purposes.
+ *
+ * @route POST /ingest/events
+ * @param {number} [startLedger] - Starting ledger sequence
+ * @param {number} [endLedger] - Ending ledger sequence (optional)
+ * @returns {Object} Queue job response
+ * @returns {boolean} response.success - Operation success indicator
+ * @returns {string} response.jobId - Unique job identifier
+ * @returns {string} response.message - Status message
+ * @status 202 - Job enqueued successfully
+ * @status 400 - Invalid parameters
+ * @status 500 - Failed to enqueue job
+ */
+router.post(INGEST_EVENTS_ROUTE, async (req: Request, res: Response) => {
+  try {
+    const startLedgerParam = req.body.startLedger
+    let startLedgerFromRequest: number | undefined = undefined
+
+    if (startLedgerParam !== undefined) {
+      startLedgerFromRequest = parseInt(startLedgerParam)
+      if (isNaN(startLedgerFromRequest)) {
+        return res.status(400).json({ error: 'Invalid startLedger parameter. Must be a number.' })
+      }
+    }
+
+    let endLedgerFromRequest: number | undefined = undefined
+    if (req.body.endLedger !== undefined) {
+      endLedgerFromRequest = parseInt(req.body.endLedger)
+      if (isNaN(endLedgerFromRequest)) {
+        return res.status(400).json({ error: 'Invalid endLedger parameter. Must be a number.' })
+      }
+    }
+
+    const jobId = ingestQueue.enqueueFetchEvents(startLedgerFromRequest, {
+      endLedger: endLedgerFromRequest,
+    })
+    res.status(202).json({
+      success: true,
+      message: `Event ingestion job enqueued. Requested start ledger: ${
+        startLedgerFromRequest === undefined ? 'latest from DB/default' : startLedgerFromRequest
+      }. ${
+        endLedgerFromRequest && endLedgerFromRequest > 0
+          ? `End ledger: ${endLedgerFromRequest}.`
+          : 'End ledger: unbounded.'
+      }`,
+      jobId,
+    })
+  } catch (error: any) {
+    res
+      .status(500)
+      .json({ success: false, error: error.message || 'Failed to enqueue event ingestion' })
+  }
+})
+
+/**
+ * POST /ingest/backfill - Trigger historical data backfill.
+ *
+ * Initiates a complete historical data synchronization for all contracts.
+ * Fetches events, operations, transactions, and accounts. Runs directly
+ * (non-queued) for immediate backfill operations.
+ *
+ * @route POST /ingest/backfill
+ * @param {number} [startLedger] - Starting ledger sequence
+ * @param {number} [endLedger] - Ending ledger sequence (optional)
+ * @returns {Object} Backfill initiation response
+ * @returns {boolean} response.success - Operation success indicator
+ * @returns {string} response.message - Status message with tracking info
+ * @status 202 - Backfill initiated successfully
+ * @status 400 - Invalid parameters
+ * @status 500 - Failed to initiate backfill
+ */
+router.post(INGEST_BACKFILL_ROUTE, async (req: Request, res: Response) => {
+  try {
+    const startLedgerParam = req.body.startLedger
+    let startLedgerFromRequest: number | undefined = undefined
+
+    if (startLedgerParam !== undefined) {
+      startLedgerFromRequest = parseInt(startLedgerParam)
+      if (isNaN(startLedgerFromRequest)) {
+        return res.status(400).json({ success: false, error: 'Invalid startLedger parameter. Must be a number.' })
+      }
+    }
+
+    let endLedgerFromRequest: number | undefined = undefined
+    if (req.body.endLedger !== undefined) {
+      endLedgerFromRequest = parseInt(req.body.endLedger)
+      if (isNaN(endLedgerFromRequest)) {
+        return res.status(400).json({ success: false, error: 'Invalid endLedger parameter. Must be a number.' })
+      }
+    }
+
+    // Non-blocking: Trigger isolated backfill process
+    performBackfill(startLedgerFromRequest, endLedgerFromRequest)
+      .then(async (result) => {
+        console.log('Isolated backfill completed:', {
+          success: result.success,
+          eventsProcessed: result.eventsProcessed,
+          transactionsProcessed: result.transactionsProcessed,
+          operationsProcessed: result.operationsProcessed,
+          processedUpToLedger: result.processedUpToLedger,
+          errorCount: result.errors.length,
+        })
+        if (result.errors.length > 0) {
+          console.warn('Backfill errors:', result.errors)
+        }
+      })
+      .catch((err: Error) => console.error('Isolated backfill failed:', err.message))
+
+    res.status(202).json({
+      success: true,
+      message: `Historical data backfill initiated. Requested start ledger: ${
+        startLedgerFromRequest === undefined ? 'latest from DB/default' : startLedgerFromRequest
+      }. ${
+        endLedgerFromRequest && endLedgerFromRequest > 0
+          ? `End ledger: ${endLedgerFromRequest}.`
+          : 'End ledger: unbounded.'
+      } Check server logs for progress.`,
+    })
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to initiate historical data backfill',
+    })
+  }
+})
+
+/**
+ * POST /ingest/recurring - Enqueue recurring data synchronization job.
+ *
+ * Queues a recurring ingestion job that continuously fetches events, operations,
+ * transactions, and account data for specified contracts. This provides ongoing
+ * synchronization with automatic continuation until endLedger is reached.
+ *
+ * @route POST /ingest/recurring
+ * @param {number} [startLedger] - Starting ledger sequence
+ * @param {number} [endLedger] - Ending ledger sequence (optional)
+ * @param {string[]} [contractIds] - Target contract IDs (defaults to config)
+ * @returns {Object} Recurring sync job response
+ * @returns {boolean} response.success - Operation success indicator
+ * @returns {string} response.jobId - Unique job identifier
+ * @returns {string} response.message - Status message
+ * @returns {string[]} response.contractIds - Target contracts
+ * @returns {string} response.dataTypes - Data types being collected
+ * @status 202 - Job enqueued successfully
+ * @status 400 - Invalid parameters
+ * @status 500 - Failed to enqueue job
+ */
+router.post(INGEST_RECURRING_ROUTE, async (req: Request, res: Response) => {
+  try {
+    const { startLedger, contractIds } = req.body
+
+    const targetContractIds = contractIds || CONTRACT_IDS_TO_INDEX
+    let startLedgerFromRequest: number | undefined = undefined
+
+    if (startLedger !== undefined) {
+      startLedgerFromRequest = parseInt(startLedger)
+      if (isNaN(startLedgerFromRequest)) {
+        return res.status(400).json({ error: 'Invalid startLedger parameter. Must be a number.' })
+      }
+    }
+
+    let endLedgerFromRequest: number | undefined = undefined
+    if (req.body.endLedger !== undefined) {
+      endLedgerFromRequest = parseInt(req.body.endLedger)
+      if (isNaN(endLedgerFromRequest)) {
+        return res.status(400).json({ error: 'Invalid endLedger parameter. Must be a number.' })
+      }
+    }
+
+    const jobId = ingestQueue.enqueueRecurringIngestion(targetContractIds, startLedgerFromRequest, {
+      endLedger: endLedgerFromRequest,
+    })
+
+    res.status(202).json({
+      success: true,
+      message: `Recurring data synchronization job enqueued for ${
+        targetContractIds.length
+      } contracts. Start ledger: ${startLedgerFromRequest || 'latest'}.`,
+      jobId,
+      contractIds: targetContractIds,
+      dataTypes: 'events, operations, transactions, accounts',
+    })
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to enqueue recurring data synchronization',
+    })
+  }
+})
+
+export default router

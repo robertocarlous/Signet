@@ -1,0 +1,17 @@
+target/
+/.sccache/
+.DS_Store
+.soroban
+test_snapshots
+.tap
+env.sh.bak
+.env.sh.bak
+logs.txt
+*.log
+
+# stellar
+.env.sh
+
+# Research files
+*_research.rs
+.stellar
