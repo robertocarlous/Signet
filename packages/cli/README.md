@@ -164,5 +164,5 @@ npm test
 ## Support
 
 - [Documentation](https://signet-docs.vercel.app)
-- [GitHub Issues](https://github.com/daccred/signet/issues)
+- [GitHub Issues](https://github.com/robertocarlous/Signet/issues)
 - [Discord Community](https://discord.gg/attestso)

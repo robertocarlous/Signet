@@ -76,7 +76,7 @@
         },
         {
           "anchor": "GitHub",
-          "href": "https://github.com/daccred/signet",
+          "href": "https://github.com/robertocarlous/Signet",
           "icon": "github"
         },
         {
@@ -91,7 +91,7 @@
     "links": [
       {
         "label": "GitHub",
-        "href": "https://github.com/daccred/signet"
+        "href": "https://github.com/robertocarlous/Signet"
       }
     ],
     "primary": {
@@ -102,7 +102,7 @@
   },
   "footer": {
     "socials": {
-      "github": "https://github.com/daccred/signet",
+      "github": "https://github.com/robertocarlous/Signet",
       "x": "https://twitter.com/signetprotocol",
       "discord": "https://discord.com/invite/7kVur5ja5m"
     },

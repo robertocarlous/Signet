@@ -19,8 +19,8 @@ solana_security_txt::security_txt! {
     name: "signet",
     project_url: "signet.vercel.app",
     contacts: "email:security@signetprotocol.org",
-    policy: "https://github.com/daccred/signet/blob/main/SECURITY.md",
-    source_code: "https://github.com/daccred/signet"
+    policy: "https://github.com/robertocarlous/Signet/blob/main/SECURITY.md",
+    source_code: "https://github.com/robertocarlous/Signet"
 }
 
 #[program]

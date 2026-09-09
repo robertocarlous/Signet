@@ -327,7 +327,7 @@ mainnet/
 
 - **Documentation**: [https://signet-docs.vercel.app](https://signet-docs.vercel.app)
 - **Discord**: [https://discord.com/invite/7kVur5ja5m](https://discord.com/invite/7kVur5ja5m)
-- **GitHub**: [https://github.com/daccred/signet](https://github.com/daccred/signet)
+- **GitHub**: [https://github.com/robertocarlous/Signet](https://github.com/robertocarlous/Signet)
 - **Stellar Expert**: [https://stellar.expert/explorer/public](https://stellar.expert/explorer/public)
 
 ## Additional Notes

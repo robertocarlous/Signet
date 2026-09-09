@@ -34,7 +34,7 @@
   "author": "Andrew Miracle <andrew@daccred.co>",
   "repository": {
     "type": "git",
-    "url": "https://github.com/daccred/signet.git"
+    "url": "https://github.com/robertocarlous/Signet.git"
   },
   "dependencies": {
     "@signetprotocol/stellar-contracts": "workspace:*",

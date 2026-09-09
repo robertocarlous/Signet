@@ -7,7 +7,7 @@
 **A Unified Trust Framework for Blockchain-Based Attestation Infrastructure**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![GitHub Issues](https://img.shields.io/github/issues/daccred/signet)](https://github.com/daccred/signet/issues)
+[![GitHub Issues](https://img.shields.io/github/issues/robertocarlous/Signet)](https://github.com/robertocarlous/Signet/issues)
 
 ---
 
@@ -200,7 +200,7 @@ See [NAMING.md](./NAMING.md) for detailed information about naming conventions a
 
 ```bash
 # Clone the repository
-git clone https://github.com/daccred/signet.git
+git clone https://github.com/robertocarlous/Signet.git
 cd signet
 
 # Install dependencies

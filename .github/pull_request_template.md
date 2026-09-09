@@ -1,4 +1,4 @@
-## I have read the [CONTRIBUTING.md](https://github.com/daccred/signet/blob/main/CONTRIBUTING.md) file.
+## I have read the [CONTRIBUTING.md](https://github.com/robertocarlous/Signet/blob/main/CONTRIBUTING.md) file.
 
 YES/NO
 

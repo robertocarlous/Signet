@@ -3,7 +3,7 @@
   "description": "Core abstractions and interfaces for Signet SDKs",
   "version": "2.0.2",
   "author": "daccred",
-  "bugs": "https://github.com/daccred/signet/issues",
+  "bugs": "https://github.com/robertocarlous/Signet/issues",
   "devDependencies": {
     "@types/node": "^24.12.2",
     "prettier": "^3.8.2",
@@ -23,7 +23,7 @@
     "dist",
     "src"
   ],
-  "homepage": "https://github.com/daccred/signet#readme",
+  "homepage": "https://github.com/robertocarlous/Signet#readme",
   "keywords": [
     "abstract",
     "attestation",
@@ -37,7 +37,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "repository": "daccred/signet.git",
+  "repository": "robertocarlous/Signet.git",
   "scripts": {
     "build": "pnpm clean && tsup",
     "clean": "rimraf dist",

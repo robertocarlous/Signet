@@ -1,7 +1,7 @@
 # Stellar Attestation Service SDK
 
 [![NPM Version](https://img.shields.io/npm/v/@signetprotocol/stellar-sdk.svg)](https://www.npmjs.com/package/@signetprotocol/stellar-sdk)
-[![License](https://img.shields.io/npm/l/@signetprotocol/stellar-sdk.svg)](https://github.com/daccred/signet/blob/main/LICENSE)
+[![License](https://img.shields.io/npm/l/@signetprotocol/stellar-sdk.svg)](https://github.com/robertocarlous/Signet/blob/main/LICENSE)
 [![TypeScript](https://img.shields.io/badge/%3C%2F%3E-TypeScript-%230074c1.svg)](https://www.typescriptlang.org/)
 
 A powerful TypeScript SDK for building attestation services on the Stellar blockchain using Soroban smart contracts. Inspired by the [Ethereum Attestation Service (EAS)](https://attest.sh/) but adapted specifically for the Stellar ecosystem.

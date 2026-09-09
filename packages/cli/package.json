@@ -6,7 +6,7 @@
   "bin": {
     "signet": "./dist/bin/run.js"
   },
-  "bugs": "https://github.com/daccred/signet/issues",
+  "bugs": "https://github.com/robertocarlous/Signet/issues",
   "dependencies": {
     "@signetprotocol/sdk": "workspace:*",
     "consola": "^3.4.2",
@@ -37,7 +37,7 @@
   "files": [
     "dist"
   ],
-  "homepage": "https://github.com/daccred/signet#readme",
+  "homepage": "https://github.com/robertocarlous/Signet#readme",
   "keywords": [
     "attestation",
     "blockchain",
@@ -52,7 +52,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "repository": "daccred/signet.git",
+  "repository": "robertocarlous/Signet.git",
   "scripts": {
     "build": "tsup",
     "build:watch": "tsup --watch",

@@ -21,7 +21,7 @@
     "stellar"
   ],
   "private": "true",
-  "repository": "daccred/signet",
+  "repository": "robertocarlous/Signet",
   "scripts": {
     "build": "pnpm run --recursive build",
     "build:docs": "pnpm --filter @signetprotocol/docs build",

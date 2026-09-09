@@ -3,7 +3,7 @@
   "description": "Stellar implementation of the Signet SDK",
   "version": "3.0.0",
   "author": "daccred",
-  "bugs": "https://github.com/daccred/signet/issues",
+  "bugs": "https://github.com/robertocarlous/Signet/issues",
   "dependencies": {
     "@signetprotocol/core": "workspace:*",
     "@signetprotocol/stellar-contracts": "workspace:*",
@@ -39,7 +39,7 @@
     "src",
     "llm.txt"
   ],
-  "homepage": "https://github.com/daccred/signet#readme",
+  "homepage": "https://github.com/robertocarlous/Signet#readme",
   "keywords": [
     "attestation",
     "blockchain",
@@ -56,7 +56,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "repository": "daccred/signet.git",
+  "repository": "robertocarlous/Signet.git",
   "scripts": {
     "build": "tsup",
     "clean": "rimraf dist",
