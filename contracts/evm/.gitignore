@@ -1,0 +1,13 @@
+# Foundry
+out/
+cache/
+broadcast/
+!broadcast/**/run-latest.json
+
+# Vendored deps (re-fetch with `forge install`)
+lib/
+
+# Env
+.env
+.env.*
+!.env.example

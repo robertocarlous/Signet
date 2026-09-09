@@ -173,7 +173,8 @@ signet/
 │   ├── docs/          # Documentation site (Mintlify)
 │   └── horizon/       # Stellar blockchain indexer (Express.js + MongoDB)
 ├── contracts/
-│   └── stellar/       # Soroban contracts (protocol, resolvers)
+│   ├── stellar/       # Soroban contracts (protocol, resolvers)
+│   └── evm/           # Solidity port targeting Monad (Foundry)
 ├── packages/
 │   ├── sdk/           # Unified TypeScript SDK
 │   ├── stellar-sdk/   # Stellar-specific SDK implementation

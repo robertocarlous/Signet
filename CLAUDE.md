@@ -15,6 +15,7 @@ apps/
   docs/            # Documentation site (Mintlify)
 contracts/
   stellar/        # Soroban contracts (protocol & resolvers)
+  evm/            # Solidity port targeting Monad (Foundry)
   solana/         # Anchor-based Solana contracts (dev)
   starknet/       # Cairo contracts (dev)
   sui/            # Move contracts (dev)
