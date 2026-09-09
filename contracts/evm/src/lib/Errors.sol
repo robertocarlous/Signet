@@ -33,6 +33,12 @@ library SignetErrors {
     error ResolverRejected(); // resolver returned false from onAttest/onRevoke
     error ResolverCallFailed(); // resolver reverted
 
+    // --- passkey / personhood ---
+    error BadPasskeySignature(); // WebAuthn assertion failed to verify
+    error PasskeyAlreadyEnrolled(); // this credential has already claimed personhood
+    error SubjectAlreadyVerified(); // subject already holds a personhood attestation
+    error InvalidPublicKey(); // (0,0) or otherwise not a usable P-256 point
+
     // --- misc ---
     error InvalidUID();
     error ZeroAddress();

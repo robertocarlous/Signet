@@ -80,3 +80,18 @@ struct ResolverMetadata {
     string version;
     string resolverType;
 }
+
+/// @notice A WebAuthn (passkey) assertion, as produced by `navigator.credentials.get()`.
+/// @dev Shape follows base-org/webauthn-sol. `challengeIndex` / `typeIndex` are the
+///      byte offsets of the `"challenge":"` and `"type":"` members inside
+///      `clientDataJSON` — the off-chain SDK computes them so on-chain verification
+///      is a fixed-cost slice compare rather than a substring search.
+///      `r` / `s` are the P-256 signature halves (`s` must be low, i.e. <= N/2).
+struct WebAuthnAuth {
+    bytes authenticatorData;
+    string clientDataJSON;
+    uint256 challengeIndex;
+    uint256 typeIndex;
+    bytes32 r;
+    bytes32 s;
+}

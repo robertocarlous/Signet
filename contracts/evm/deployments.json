@@ -19,6 +19,16 @@
         },
         "supersedes": "0x094f1d15d70AfA37ee157965274bB30b6aBFCa29",
         "note": "EIP-712 delegation added; rebound to the same SchemaRegistry."
+      },
+      "PersonhoodResolver": {
+        "address": "0xcf5b29668EB4Ea1dC51BA596c41bb2E722425100",
+        "note": "Locks the personhood schema to PasskeyAttester as the only allowed attester."
+      },
+      "PasskeyAttester": {
+        "address": "0x5A99835d5E7434BBf3e44Cc6A3E76b762045c48d",
+        "personhoodSchemaUID": "0x6e29449805b2f822cdbaea9ca4bbc8758addb90d9ac2206e6d6156a51cac74e4",
+        "requireUserVerification": false,
+        "note": "WebAuthn/P-256 -> proof-of-personhood attestation. One enrolment per passkey, one attestation per subject."
       }
     },
     "deployedAt": "2026-09-09T12:41:56Z",
@@ -30,6 +40,12 @@
       "attestTx": "0xbc4bf11dd6d68a665237745bda7a916260af6cb9a072941f1a24b1ef4a2d33eb",
       "note": "Direct register + self-attest, plus an EIP-712 delegated attestation, all on chain 10143.",
       "delegatedAttestTx": "0xee633951031ea8ef7aa74972ef0c377dab88f0cc2e243f112d82a231d75e972d"
+    },
+    "passkeyPersonhood": {
+      "schemaUID": "0x6e29449805b2f822cdbaea9ca4bbc8758addb90d9ac2206e6d6156a51cac74e4",
+      "rip7212PrecompilePresent": true,
+      "smokeAttestationUID": "0xc659ddadead2cfe70ff0f56e4635c5a841f8afe39d4e606af11c42bcbd9e827a",
+      "note": "Live: a synthetic passkey assertion was verified on-chain (native RIP-7212) and produced a personhood attestation with attester = PasskeyAttester."
     }
   }
 }
