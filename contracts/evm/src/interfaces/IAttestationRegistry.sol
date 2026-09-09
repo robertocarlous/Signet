@@ -61,4 +61,8 @@ interface IAttestationRegistry {
 
     /// @notice Current delegated-revocation nonce for a revoker.
     function getRevocationNonce(address revoker) external view returns (uint64);
+
+    // NOTE: EIP-712 helpers for off-chain signers — `DOMAIN_SEPARATOR()`,
+    // `hashDelegatedAttestation(...)`, `hashDelegatedRevocation(...)` — live on
+    // the concrete contract via SignetEIP712; see SignetEIP712.sol.
 }

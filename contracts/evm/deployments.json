@@ -11,22 +11,25 @@
         "txHash": "0x38b81b2bab58fe19735bb79620deb9ba0cf8c9f05deea8e936296ce0881352e8"
       },
       "SignetAttestationRegistry": {
-        "address": "0x094f1d15d70AfA37ee157965274bB30b6aBFCa29",
-        "deployBlock": 61042751,
-        "txHash": "0x5c0e647f5097793314d04ed585332e8711e03817c2496ef442a5119adf009902",
+        "address": "0x4A48BE178900874FF1E5c2cF91E0B56f67d5359C",
+        "deployBlock": 61047087,
+        "txHash": "0x6f8db19fa0e32dc4d1489aec4d8e5c38456da4402f93cbe3521b7f4c172cd821",
         "constructorArgs": {
           "schemaRegistry": "0x2eb183fFd7D40866DEA68f2173C4C5a604D22602"
-        }
+        },
+        "supersedes": "0x094f1d15d70AfA37ee157965274bB30b6aBFCa29",
+        "note": "EIP-712 delegation added; rebound to the same SchemaRegistry."
       }
     },
-    "deployedAt": "2026-09-09T12:19:10Z",
+    "deployedAt": "2026-09-09T12:41:56Z",
     "smokeTest": {
       "schemaUID": "0xb17ffe44f4f555cfa9c26198063e9348d725d2e0b5af926c5e048162856a88c2",
       "schemaDefinition": "{\"name\":\"proof-of-personhood\",\"version\":\"1\",\"fields\":[{\"name\":\"verified\",\"type\":\"bool\"}]}",
       "registerTx": "0x0c30b414ad64df8491f4ad6a3c98aad5b5723c6ec8423eb5b9c71d23f9c4af3b",
       "attestationUID": "0xe926e6e2d1baecca7326df6eac996ec7224e5ee41831a9cc5dbe5851027d92e6",
       "attestTx": "0xbc4bf11dd6d68a665237745bda7a916260af6cb9a072941f1a24b1ef4a2d33eb",
-      "note": "Direct register + self-attest by the deployer. Confirms the live core end-to-end."
+      "note": "Direct register + self-attest, plus an EIP-712 delegated attestation, all on chain 10143.",
+      "delegatedAttestTx": "0xee633951031ea8ef7aa74972ef0c377dab88f0cc2e243f112d82a231d75e972d"
     }
   }
 }

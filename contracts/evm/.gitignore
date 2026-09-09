@@ -5,9 +5,12 @@ broadcast/
 # deployment addresses are tracked in deployments.json, not broadcast/
 
 # Vendored deps (re-fetch with `forge install`)
-lib/
+/lib/
 
 # Env
 .env
 .env.*
 !.env.example
+
+# forge dep lock — deps are vendored via `forge install --no-git`
+foundry.lock

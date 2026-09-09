@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+
 import { IAttestationRegistry } from "./interfaces/IAttestationRegistry.sol";
 import { ISchemaRegistry } from "./interfaces/ISchemaRegistry.sol";
 import { IResolver } from "./interfaces/IResolver.sol";
@@ -14,12 +16,13 @@ import {
 } from "./lib/Types.sol";
 import { SignetErrors } from "./lib/Errors.sol";
 import { SignetUID } from "./lib/SignetUID.sol";
+import { SignetEIP712 } from "./lib/SignetEIP712.sol";
 
 /// @title SignetAttestationRegistry
 /// @notice Core attestation engine. EVM port of `instructions/{attestation,delegation}.rs`.
 /// @dev Bound to one SchemaRegistry at deploy time. No admin — the protocol layer
 ///      is immutable; policy lives in per-schema resolver contracts.
-contract SignetAttestationRegistry is IAttestationRegistry {
+contract SignetAttestationRegistry is IAttestationRegistry, SignetEIP712 {
     /// @notice The schema registry this engine reads definitions from.
     ISchemaRegistry public immutable schemaRegistry;
 
@@ -50,25 +53,40 @@ contract SignetAttestationRegistry is IAttestationRegistry {
     }
 
     // ---------------------------------------------------------------------
-    // Delegated attestation  — TODO(M1 follow-up): EIP-712 verification
+    // Delegated attestation (signed off-chain, relayed by anyone)
     // ---------------------------------------------------------------------
 
     /// @inheritdoc IAttestationRegistry
-    /// @dev TODO: recover `request.attester` from an EIP-712 signature over the
-    ///      ATTEST typehash, enforce `nonce == _nonces[attester]` and
-    ///      `block.timestamp <= deadline`, then call `_attest(...)`.
-    ///      Ported from `delegation.rs::attest_by_delegation` (BLS -> ECDSA).
+    /// @dev Ported from `delegation.rs::attest_by_delegation` (BLS -> EIP-712 ECDSA).
+    ///      Order: deadline -> signature -> nonce, then the shared `_attest` path.
     function attestByDelegation(DelegatedAttestationRequest calldata request) external returns (bytes32 uid) {
-        request; // silence unused warning until implemented
-        revert("TODO: attestByDelegation");
+        if (request.deadline < block.timestamp) revert SignetErrors.ExpiredSignature();
+
+        address signer = ECDSA.recover(hashDelegatedAttestation(request), request.signature);
+        if (signer != request.attester) revert SignetErrors.InvalidSignature();
+
+        if (request.nonce != _nonces[request.attester]) revert SignetErrors.InvalidNonce();
+
+        uid = _attest(request.schemaUID, request.subject, request.attester, request.expirationTime, request.data);
     }
 
     /// @inheritdoc IAttestationRegistry
-    /// @dev TODO: mirror `attestByDelegation` for revocation
-    ///      (`delegation.rs::revoke_by_delegation`), using `_revocationNonces`.
+    /// @dev Mirrors `attestByDelegation` for revocation
+    ///      (`delegation.rs::revoke_by_delegation`), using the independent
+    ///      `_revocationNonces` counter.
     function revokeByDelegation(DelegatedRevocationRequest calldata request) external {
-        request;
-        revert("TODO: revokeByDelegation");
+        if (request.deadline < block.timestamp) revert SignetErrors.ExpiredSignature();
+
+        address signer = ECDSA.recover(hashDelegatedRevocation(request), request.signature);
+        if (signer != request.revoker) revert SignetErrors.InvalidSignature();
+
+        if (request.nonce != _revocationNonces[request.revoker]) revert SignetErrors.InvalidNonce();
+        unchecked {
+            _revocationNonces[request.revoker] = request.nonce + 1;
+        }
+
+        // The revoker must be the attestation's attester — enforced by `_revoke`.
+        _revoke(request.attestationUID, request.revoker);
     }
 
     // ---------------------------------------------------------------------
