@@ -2,7 +2,7 @@
 out/
 cache/
 broadcast/
-!broadcast/**/run-latest.json
+# deployment addresses are tracked in deployments.json, not broadcast/
 
 # Vendored deps (re-fetch with `forge install`)
 lib/

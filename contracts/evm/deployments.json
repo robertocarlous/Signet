@@ -1,0 +1,24 @@
+{
+  "monadTestnet": {
+    "chainId": 10143,
+    "rpcUrl": "https://rpc.ankr.com/monad_testnet",
+    "explorer": "https://testnet.monadscan.com",
+    "deployer": "0x1780df035b6D25138D729351aF85278d3A719fcD",
+    "contracts": {
+      "SignetSchemaRegistry": {
+        "address": "0x2eb183fFd7D40866DEA68f2173C4C5a604D22602",
+        "deployBlock": 61042744,
+        "txHash": "0x38b81b2bab58fe19735bb79620deb9ba0cf8c9f05deea8e936296ce0881352e8"
+      },
+      "SignetAttestationRegistry": {
+        "address": "0x094f1d15d70AfA37ee157965274bB30b6aBFCa29",
+        "deployBlock": 61042751,
+        "txHash": "0x5c0e647f5097793314d04ed585332e8711e03817c2496ef442a5119adf009902",
+        "constructorArgs": {
+          "schemaRegistry": "0x2eb183fFd7D40866DEA68f2173C4C5a604D22602"
+        }
+      }
+    },
+    "deployedAt": "2026-09-09T12:19:10Z"
+  }
+}

@@ -9,6 +9,16 @@ stay chain-agnostic.
 > dispatch, and views are implemented. Delegated (EIP-712) attest/revoke are
 > stubbed (`TODO`). The WebAuthn/P256 passkey authorization layer lands in M2.
 
+## Live — Monad testnet (chain 10143)
+
+| Contract | Address |
+|---|---|
+| `SignetSchemaRegistry` | [`0x2eb183fFd7D40866DEA68f2173C4C5a604D22602`](https://testnet.monadscan.com/address/0x2eb183fFd7D40866DEA68f2173C4C5a604D22602) |
+| `SignetAttestationRegistry` | [`0x094f1d15d70AfA37ee157965274bB30b6aBFCa29`](https://testnet.monadscan.com/address/0x094f1d15d70AfA37ee157965274bB30b6aBFCa29) |
+
+Canonical machine-readable copy: [`deployments.json`](./deployments.json).
+Source verification on MonadScan is pending an API key (`forge script … --verify`).
+
 ## Layout
 
 ```
