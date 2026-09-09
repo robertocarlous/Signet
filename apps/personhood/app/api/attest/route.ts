@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { type Address, type Hex, isAddress } from 'viem'
+import { BaseError, ContractFunctionRevertedError, type Address, type Hex, isAddress } from 'viem'
 import { toWebAuthnAuth } from '@signetprotocol/evm-sdk'
 import { relayerClient } from '@/app/lib/signet'
 
@@ -10,14 +10,26 @@ interface Body {
   x: Hex
   y: Hex
   authenticatorData: Hex
-  clientDataJSON: Hex
+  clientDataJSON: string
   signature: Hex
 }
 
-const KNOWN_ERRORS: Record<string, { status: number; message: string }> = {
+const FRIENDLY: Record<string, { status: number; message: string }> = {
   PasskeyAlreadyEnrolled: { status: 409, message: 'This passkey has already claimed a personhood attestation.' },
   SubjectAlreadyVerified: { status: 409, message: 'This identity already holds a personhood attestation.' },
   BadPasskeySignature: { status: 422, message: 'The passkey signature did not verify on chain.' },
+  InvalidPublicKey: { status: 400, message: 'The passkey public key is invalid.' },
+}
+
+/** Pull a decoded custom-error name out of a viem error, if present. */
+function revertName(err: unknown): string | undefined {
+  if (err instanceof BaseError) {
+    const reverted = err.walk((e) => e instanceof ContractFunctionRevertedError)
+    if (reverted instanceof ContractFunctionRevertedError) {
+      return reverted.data?.errorName ?? reverted.reason ?? undefined
+    }
+  }
+  return undefined
 }
 
 export async function POST(req: Request) {
@@ -50,11 +62,17 @@ export async function POST(req: Request) {
     })
     return NextResponse.json({ txHash: hash, uid })
   } catch (err) {
-    const text = err instanceof Error ? `${err.message}` : String(err)
-    for (const [name, mapped] of Object.entries(KNOWN_ERRORS)) {
-      if (text.includes(name)) return NextResponse.json({ error: mapped.message, code: name }, { status: mapped.status })
+    const name = revertName(err)
+    const raw = err instanceof Error ? err.message : String(err)
+
+    if (name && FRIENDLY[name]) {
+      return NextResponse.json({ error: FRIENDLY[name].message, code: name }, { status: FRIENDLY[name].status })
     }
-    console.error('attestPersonhood failed:', text)
-    return NextResponse.json({ error: 'enrolment failed', detail: text.slice(0, 300) }, { status: 500 })
+
+    console.error('attestPersonhood failed:', name ?? '(no revert name)', '\n', raw)
+    return NextResponse.json(
+      { error: 'enrolment failed', code: name ?? null, detail: (name ? `${name}: ` : '') + raw.slice(0, 400) },
+      { status: 500 },
+    )
   }
 }

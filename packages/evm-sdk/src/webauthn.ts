@@ -102,21 +102,26 @@ export interface AssertionParts {
  * tuple that `PasskeyAttester` / `WebAuthn.sol` expect.
  */
 export function toWebAuthnAuth(parts: AssertionParts): WebAuthnAuth {
-  const authenticatorData =
-    typeof parts.authenticatorData === 'string'
-      ? parts.authenticatorData
-      : bytesToHex(
-          parts.authenticatorData instanceof Uint8Array
-            ? parts.authenticatorData
-            : new Uint8Array(parts.authenticatorData)
-        )
+  const toU8 = (v: ArrayBuffer | Uint8Array): Uint8Array =>
+    v instanceof Uint8Array ? v : new Uint8Array(v)
 
-  const clientDataJSON =
-    typeof parts.clientDataJSON === 'string'
-      ? parts.clientDataJSON
-      : new TextDecoder().decode(
-          parts.clientDataJSON instanceof Uint8Array ? parts.clientDataJSON : new Uint8Array(parts.clientDataJSON)
-        )
+  const authenticatorData: Hex =
+    typeof parts.authenticatorData === 'string'
+      ? (parts.authenticatorData.startsWith('0x')
+          ? (parts.authenticatorData as Hex)
+          : bytesToHex(new TextEncoder().encode(parts.authenticatorData)))
+      : bytesToHex(toU8(parts.authenticatorData))
+
+  let clientDataJSON: string
+  if (typeof parts.clientDataJSON === 'string') {
+    // Accept either the raw JSON text or a 0x-hex encoding of it.
+    clientDataJSON =
+      parts.clientDataJSON.startsWith('0x') && !parts.clientDataJSON.includes('{')
+        ? new TextDecoder().decode(hexToBytes(parts.clientDataJSON as Hex))
+        : parts.clientDataJSON
+  } else {
+    clientDataJSON = new TextDecoder().decode(toU8(parts.clientDataJSON))
+  }
 
   const { r, s } = derSignatureToRS(parts.signature)
 

@@ -105,8 +105,8 @@ export async function createPasskey(rpId: string): Promise<StoredPasskey> {
 
 export interface RawAssertion {
   authenticatorData: string // hex
-  clientDataJSON: string // hex
-  signature: string // hex
+  clientDataJSON: string // the raw JSON text, verbatim from the authenticator
+  signature: string // hex (DER)
 }
 
 /** Ask the passkey to sign `challengeHex` (the Signet personhood challenge). */
@@ -129,7 +129,8 @@ export async function getAssertion(
   const r = assertion.response as AuthenticatorAssertionResponse
   return {
     authenticatorData: bytesToHex(new Uint8Array(r.authenticatorData)),
-    clientDataJSON: bytesToHex(new Uint8Array(r.clientDataJSON)),
+    // The contract expects the exact JSON string the authenticator signed, not hex.
+    clientDataJSON: new TextDecoder().decode(new Uint8Array(r.clientDataJSON)),
     signature: bytesToHex(new Uint8Array(r.signature)),
   }
 }

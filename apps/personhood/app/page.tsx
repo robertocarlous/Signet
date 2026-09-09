@@ -111,7 +111,7 @@ export default function EnrolPage() {
           setError(null)
           return
         }
-        throw new Error(data.error || 'enrolment failed')
+        throw new Error(data.detail || data.error || 'enrolment failed')
       }
 
       setTxHash(data.txHash as Hex)

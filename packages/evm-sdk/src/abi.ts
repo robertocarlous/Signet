@@ -1,6 +1,35 @@
 /** Minimal ABIs for the Signet EVM contracts — only what the SDK calls. */
 
+/** Every custom error in `contracts/evm/src/lib/Errors.sol` — so viem can name reverts. */
+export const signetErrorsAbi = [
+  'SchemaNotFound',
+  'SchemaAlreadyExists',
+  'InvalidSchemaDefinition',
+  'AttestationExists',
+  'AttestationNotFound',
+  'AttestationNotRevocable',
+  'AlreadyRevoked',
+  'AttestationExpired',
+  'InvalidAttestationValue',
+  'NotAuthorized',
+  'NotInitialized',
+  'AlreadyInitialized',
+  'InvalidNonce',
+  'InvalidDeadline',
+  'ExpiredSignature',
+  'InvalidSignature',
+  'ResolverRejected',
+  'ResolverCallFailed',
+  'BadPasskeySignature',
+  'PasskeyAlreadyEnrolled',
+  'SubjectAlreadyVerified',
+  'InvalidPublicKey',
+  'InvalidUID',
+  'ZeroAddress',
+].map((name) => ({ type: 'error', name, inputs: [] }) as const)
+
 export const schemaRegistryAbi = [
+  ...signetErrorsAbi,
   {
     type: 'function',
     name: 'register',
@@ -95,6 +124,7 @@ const delegatedRevocationRequest = {
 } as const
 
 export const attestationRegistryAbi = [
+  ...signetErrorsAbi,
   {
     type: 'function',
     name: 'attest',
@@ -208,6 +238,7 @@ export const attestationRegistryAbi = [
 ] as const
 
 export const passkeyAttesterAbi = [
+  ...signetErrorsAbi,
   {
     type: 'function',
     name: 'attestPersonhood',
