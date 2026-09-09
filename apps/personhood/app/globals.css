@@ -215,3 +215,59 @@ ol.steps {
 ol.steps li {
   margin: 4px 0;
 }
+
+/* SDK playground */
+.field {
+  display: block;
+  margin: 10px 0;
+}
+.field span {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  margin: 6px 0;
+}
+.out {
+  margin-top: 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--accent);
+}
+.out-err {
+  color: var(--danger);
+}
+pre.code {
+  margin: 14px 0 0;
+  background: #0e1116;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #c9d3e0;
+}
+pre.code code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+h2.section {
+  margin: 34px 0 4px;
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}

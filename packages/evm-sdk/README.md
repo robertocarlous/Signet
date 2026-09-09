@@ -95,3 +95,26 @@ const { uid } = await signet.attestPersonhood({ subject: '0xSubject...', x, y, a
 | `toWebAuthnAuth` / `assertionFromCredential` | build the `WebAuthnAuth` tuple |
 
 Addresses ship in `DEPLOYMENTS` (kept in sync with `contracts/evm/deployments.json`).
+
+## Try it
+
+- **Live playground:** [signet-personhood.vercel.app/sdk](https://signet-personhood.vercel.app/sdk) — run every helper in the browser and fire real transactions through a relayer.
+- **Runnable example:**
+  ```bash
+  pnpm --filter @signetprotocol/evm-sdk example              # pure helpers only
+  PRIVATE_KEY=0x... pnpm --filter @signetprotocol/evm-sdk example   # + live register / attest / delegate
+  ```
+- **Parity tests** (the correctness proof — pure functions vs live on-chain values):
+  ```bash
+  pnpm --filter @signetprotocol/evm-sdk test
+  ```
+
+## Publishing (maintainers)
+
+```bash
+npm login                       # to an account with access to the @signetprotocol scope
+cd packages/evm-sdk
+npm publish                      # runs prepublishOnly: clean + build + test; publishConfig.access = public
+```
+
+Consumers then just `npm install @signetprotocol/evm-sdk viem`.

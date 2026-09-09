@@ -19,6 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <nav>
             <Link href="/">Enrol</Link>
             <Link href="/verify">Verify</Link>
+            <Link href="/sdk">SDK</Link>
             <a href="https://github.com/robertocarlous/Signet" target="_blank" rel="noreferrer">
               GitHub
             </a>
