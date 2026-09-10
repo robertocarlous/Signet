@@ -148,16 +148,6 @@ cp apps/personhood/.env.example apps/personhood/.env.local   # set RELAYER_PRIVA
 pnpm --filter @signetprotocol/personhood-demo dev            # http://localhost:3002
 ```
 
-## Also in this repo: Stellar
-
-Signet began as a Soroban implementation and it still ships here —
-`contracts/stellar/` (Rust), `packages/stellar-sdk`, and the Stellar side of the
-`horizon` indexer. It is deployed on Stellar mainnet and testnet; addresses are
-in [`contracts/stellar/bindings/src/contracts.json`](contracts/stellar/bindings/src/contracts.json).
-The EVM port keeps the same data model, event shape, UID inputs, and error set so
-the SDK, indexer, and docs stay chain-agnostic — the deliberate divergences are
-`bytes` values instead of Soroban `String`, and EIP-712 ECDSA delegation instead
-of BLS12-381.
 
 ## Tech
 
