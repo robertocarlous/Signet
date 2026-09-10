@@ -360,6 +360,81 @@ async function onCheckIn(
 
 ---
 
+## Monad Implementation
+
+```typescript
+import { SignetClient } from '@signetprotocol/evm-sdk'
+import { encodeAbiParameters, decodeAbiParameters, type Address, type Hex } from 'viem'
+
+type EventRole = 'attendee' | 'speaker' | 'sponsor' | 'organizer'
+
+const EVENT_FIELDS = [
+  { type: 'string' }, // eventId
+  { type: 'string' }, // eventName
+  { type: 'string' }, // role
+  { type: 'uint64' }, // timestamp
+] as const
+
+// 1. Register schema (one-time)
+async function registerEventSchema(signet: SignetClient) {
+  const { uid } = await signet.registerSchema({
+    definition: 'string eventId,string eventName,string role,uint64 timestamp',
+    revocable: true, // allow revoking fraudulent claims
+  })
+  return uid
+}
+
+// 2. Issue a badge at check-in
+async function issueAttendanceBadge(
+  signet: SignetClient,
+  schemaUID: Hex,
+  attendee: Address,
+  event: { id: string; name: string },
+  role: EventRole,
+) {
+  const data = encodeAbiParameters(EVENT_FIELDS, [
+    event.id,
+    event.name,
+    role,
+    BigInt(Math.floor(Date.now() / 1000)),
+  ])
+  return signet.attest({ schemaUID, subject: attendee, data })
+}
+
+// 3. Batch issue — one transaction per attendee; run sequentially so nonces stay in order
+async function batchIssueAttendance(
+  signet: SignetClient,
+  schemaUID: Hex,
+  event: { id: string; name: string },
+  attendees: Array<{ address: Address; role: EventRole }>,
+) {
+  const results = []
+  for (const attendee of attendees) {
+    try {
+      const { uid } = await issueAttendanceBadge(signet, schemaUID, attendee.address, event, attendee.role)
+      results.push({ address: attendee.address, success: true, badgeUid: uid })
+    } catch (error) {
+      results.push({ address: attendee.address, success: false, error: (error as Error).message })
+    }
+  }
+  return results
+}
+
+// 4. Verify — gate access to speakers/organizers only
+async function canAccessAlumniChannel(signet: SignetClient, attestationUID: Hex) {
+  if (!(await signet.isValid(attestationUID))) {
+    return { allowed: false, reason: 'Invalid attendance proof' }
+  }
+  const attestation = await signet.getAttestation(attestationUID)
+  const [, eventName, role] = decodeAbiParameters(EVENT_FIELDS, attestation.data)
+
+  if (!['speaker', 'organizer'].includes(role)) {
+    return { allowed: false, reason: 'Speakers and organizers only' }
+  }
+  return { allowed: true, eventName, role }
+}
+```
+
 ## Next Steps
 
 <CardGroup cols={2}>

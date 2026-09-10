@@ -400,6 +400,85 @@ async function onMemberJoin(
 
 ---
 
+## Monad Implementation
+
+```typescript
+import { SignetClient } from '@signetprotocol/evm-sdk'
+import { encodeAbiParameters, decodeAbiParameters, type Address, type Hex } from 'viem'
+
+type DAORole = 'member' | 'contributor' | 'core' | 'admin'
+const ROLE_HIERARCHY: Record<DAORole, number> = { member: 1, contributor: 2, core: 3, admin: 4 }
+
+const MEMBERSHIP_FIELDS = [
+  { type: 'string' }, // daoId
+  { type: 'string' }, // daoName
+  { type: 'string' }, // role
+  { type: 'uint64' }, // joinedAt
+  { type: 'bool' },   // active
+] as const
+
+// 1. Register schema (one-time)
+async function registerMembershipSchema(signet: SignetClient) {
+  const { uid } = await signet.registerSchema({
+    definition: 'string daoId,string daoName,string role,uint64 joinedAt,bool active',
+    revocable: true, // critical for membership management
+  })
+  return uid
+}
+
+// 2. Issue membership
+async function issueMembership(
+  signet: SignetClient,
+  schemaUID: Hex,
+  member: Address,
+  dao: { id: string; name: string },
+  role: DAORole,
+) {
+  const data = encodeAbiParameters(MEMBERSHIP_FIELDS, [
+    dao.id,
+    dao.name,
+    role,
+    BigInt(Math.floor(Date.now() / 1000)),
+    true,
+  ])
+  return signet.attest({ schemaUID, subject: member, data })
+}
+
+// 3. Revoke
+async function revokeMembership(signet: SignetClient, membershipUID: Hex) {
+  return signet.revoke(membershipUID)
+}
+
+// 4. Upgrade role — issue a new attestation preserving the original join date
+async function upgradeRole(
+  signet: SignetClient,
+  schemaUID: Hex,
+  member: Address,
+  dao: { id: string; name: string },
+  newRole: DAORole,
+  originalJoinedAt: bigint,
+) {
+  const data = encodeAbiParameters(MEMBERSHIP_FIELDS, [dao.id, dao.name, newRole, originalJoinedAt, true])
+  return signet.attest({ schemaUID, subject: member, data })
+}
+
+// 5. Verify — gate voting to contributor+ roles
+async function canVote(signet: SignetClient, attestationUID: Hex, daoId: string) {
+  if (!(await signet.isValid(attestationUID))) {
+    return { canVote: false, reason: 'Invalid or revoked membership' }
+  }
+  const attestation = await signet.getAttestation(attestationUID)
+  const [attDaoId, , role, , active] = decodeAbiParameters(MEMBERSHIP_FIELDS, attestation.data)
+
+  if (attDaoId !== daoId) return { canVote: false, reason: 'Not a member of this DAO' }
+  if (!active) return { canVote: false, reason: 'Membership inactive' }
+  if (ROLE_HIERARCHY[role as DAORole] < ROLE_HIERARCHY.contributor) {
+    return { canVote: false, reason: 'Members cannot vote, must be contributor+' }
+  }
+  return { canVote: true, role, member: attestation.subject }
+}
+```
+
 ## Next Steps
 
 <CardGroup cols={2}>
@@ -407,6 +486,6 @@ async function onMemberJoin(
     Identity attestations
   </Card>
   <Card title="Delegates" icon="key" href="/concepts/delegates">
-    Scale issuance with BLS delegation
+    Scale issuance — EIP-712 on Monad, BLS on Stellar
   </Card>
 </CardGroup>

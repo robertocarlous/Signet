@@ -435,6 +435,80 @@ async function onIdentityVerified(
 
 ---
 
+## Monad Implementation
+
+```typescript
+import { SignetClient } from '@signetprotocol/evm-sdk'
+import { encodeAbiParameters, decodeAbiParameters, type Address, type Hex } from 'viem'
+
+type IdentityType = 'twitter' | 'github' | 'email' | 'domain' | 'discord'
+
+const IDENTITY_FIELDS = [
+  { type: 'string' }, // type
+  { type: 'string' }, // identifier
+  { type: 'uint64' }, // verifiedAt
+  { type: 'string' }, // proofUrl
+] as const
+
+// 1. Register schema (one-time)
+async function registerIdentitySchema(signet: SignetClient) {
+  const { uid } = await signet.registerSchema({
+    definition: 'string type,string identifier,uint64 verifiedAt,string proofUrl',
+    revocable: true,
+  })
+  return uid
+}
+
+// 2. Issue an identity attestation
+async function issueIdentity(
+  signet: SignetClient,
+  schemaUID: Hex,
+  user: Address,
+  identity: { type: IdentityType; identifier: string; proofUrl: string },
+) {
+  const data = encodeAbiParameters(IDENTITY_FIELDS, [
+    identity.type,
+    identity.identifier,
+    BigInt(Math.floor(Date.now() / 1000)),
+    identity.proofUrl,
+  ])
+  return signet.attest({ schemaUID, subject: user, data })
+}
+
+// 3. Twitter / GitHub verification flows — same shape, just gate on your own proof check first
+async function verifyTwitterAndAttest(
+  signet: SignetClient,
+  schemaUID: Hex,
+  user: Address,
+  twitterHandle: string,
+  tweetUrl: string,
+) {
+  const tweetValid = await verifyTweetContainsAddress(tweetUrl, user) // your backend logic
+  if (!tweetValid) throw new Error('Tweet verification failed')
+
+  return issueIdentity(signet, schemaUID, user, { type: 'twitter', identifier: twitterHandle, proofUrl: tweetUrl })
+}
+
+// 4. Verify — gate access to trusted-issuer, specific-type identities
+const TRUSTED_PROVIDERS: Address[] = ['0xProvider1...', '0xProvider2...']
+
+async function canAccessPremiumFeatures(signet: SignetClient, attestationUID: Hex) {
+  if (!(await signet.isValid(attestationUID))) {
+    return { allowed: false, reason: 'No valid identity' }
+  }
+  const attestation = await signet.getAttestation(attestationUID)
+  if (!TRUSTED_PROVIDERS.includes(attestation.attester)) {
+    return { allowed: false, reason: 'Untrusted identity provider' }
+  }
+
+  const [type, identifier] = decodeAbiParameters(IDENTITY_FIELDS, attestation.data)
+  if (!['twitter', 'github'].includes(type)) {
+    return { allowed: false, reason: 'Twitter or GitHub identity required' }
+  }
+  return { allowed: true, identityType: type, identifier }
+}
+```
+
 ## Next Steps
 
 <CardGroup cols={2}>
@@ -442,6 +516,6 @@ async function onIdentityVerified(
     Build verification UI
   </Card>
   <Card title="Delegates" icon="key" href="/concepts/delegates">
-    Scale identity issuance
+    Scale identity issuance — EIP-712 on Monad, BLS on Stellar
   </Card>
 </CardGroup>

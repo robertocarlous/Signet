@@ -1,73 +1,24 @@
 ---
 title: 'Quickstart'
-description: 'Create your first attestation in 5 minutes'
+description: 'Create your first attestation in minutes — pick a chain to get started'
 ---
 
-## Install
+Signet runs on two chains today. Pick the one you're building on — the concepts
+(schemas, attestations, resolvers, delegation) are the same on both; only the SDK
+and signature scheme differ.
 
-```bash
-npm install @signetprotocol/stellar-sdk @stellar/stellar-sdk
-```
+<CardGroup cols={2}>
+  <Card title="Monad" icon="rocket" href="/monad/quickstart">
+    **Primary chain.** EVM, viem-based `@signetprotocol/evm-sdk`, live on testnet
+    (chain `10143`). Ships passkey proof-of-personhood.
+  </Card>
+  <Card title="Stellar" icon="star" href="/stellar/getting-started">
+    **Original implementation.** Soroban, `@signetprotocol/stellar-sdk`, BLS delegation.
+  </Card>
+</CardGroup>
 
-## Initialize Client
-
-```typescript
-import { StellarAttestationClient } from '@signetprotocol/stellar-sdk';
-import { Keypair, Networks, Transaction } from '@stellar/stellar-sdk';
-
-// Your Stellar keypair
-const keypair = Keypair.fromSecret('SXXXX...');
-
-// Create signer
-const signer = {
-  signTransaction: async (xdr: string) => {
-    const tx = new Transaction(xdr, Networks.TESTNET);
-    tx.sign(keypair);
-    return tx.toXDR();
-  }
-};
-
-// Initialize client
-const client = new StellarAttestationClient({
-  rpcUrl: 'https://soroban-testnet.stellar.org',
-  network: 'testnet',
-  publicKey: keypair.publicKey()
-});
-```
-
-## Create Schema
-
-```typescript
-const schemaResult = await client.createSchema({
-  definition: 'struct KYC { bool verified; string level; }',
-  revocable: true,
-  options: { signer }
-});
-```
-
-## Create Attestation
-
-```typescript
-// Generate schema UID
-const schemaUid = client.generateSchemaUid({
-  definition: 'struct KYC { bool verified; string level; }',
-  authority: keypair.publicKey()
-});
-
-// Attest
-await client.attest({
-  schemaUid,
-  value: JSON.stringify({ verified: true, level: 'basic' }),
-  options: { signer }
-});
-```
-
-## Verify Attestation
-
-```typescript
-const attestation = await client.getAttestation(attestationUid);
-console.log(attestation.result);
-```
+Not sure which one? Start with **Monad** — it's the actively developed chain and has
+the simpler setup (a viem wallet, no keypair/XDR handling).
 
 ## Next Steps
 
@@ -75,7 +26,7 @@ console.log(attestation.result);
   <Card title="How It Works" icon="lightbulb" href="/concepts/how-it-works">
     Understand the architecture
   </Card>
-  <Card title="Stellar Guide" icon="star" href="/stellar/getting-started">
-    Complete walkthrough with all features
+  <Card title="Why Signet" icon="scale-balanced" href="/monad/why-signet">
+    What a shared attestation layer gets you over rolling your own
   </Card>
 </CardGroup>

@@ -52,7 +52,23 @@ Being a schema authority does **not** mean only you can attest. By default, anyo
 
 ### Creating a Schema
 
-```typescript
+<CodeGroup>
+```typescript Monad
+import { SignetClient } from '@signetprotocol/evm-sdk'
+
+const signet = new SignetClient({ chain: 'monadTestnet', publicClient, walletClient })
+
+// Register a schema - the walletClient's account becomes its authority
+const { uid: schemaUID } = await signet.registerSchema({
+  definition: 'string name,bool verified,uint64 timestamp',
+  revocable: true,
+  // resolver: undefined  // omit = no resolver = permissionless attestations
+})
+
+// Anyone can now attest to this schema
+```
+
+```typescript Stellar
 import { StellarAttestationClient } from '@signetprotocol/stellar-sdk';
 
 const client = new StellarAttestationClient({
@@ -68,14 +84,26 @@ const schemaUid = await client.createSchema({
 
 // Anyone can now attest to this schema
 ```
+</CodeGroup>
 
-On testnet, `network: 'testnet'` resolves to the current protocol contract, <code>{testnetCurrent}</code>. Pass `contractId` only to pin an older version.
+On Stellar testnet, `network: 'testnet'` resolves to the current protocol contract, <code>{testnetCurrent}</code>. Pass `contractId` only to pin an older version. On Monad, `chain: 'monadTestnet'` resolves to the addresses in `DEPLOYMENTS` (see [Monad overview](/monad/overview)).
 
 ### Restricting Access with Resolvers
 
 If you want to control who can attest to your schema, attach a resolver:
 
-```typescript
+<CodeGroup>
+```typescript Monad
+const { uid: schemaUID } = await signet.registerSchema({
+  definition: 'string credential,uint64 issuedAt',
+  resolver: '0xResolverContract...', // Resolver controls who can attest
+  revocable: true,
+})
+
+// Now only addresses approved by the resolver can attest
+```
+
+```typescript Stellar
 // Deploy a schema with access control
 const schemaUid = await client.createSchema({
   definition: 'string credential, uint64 issuedAt',
@@ -85,12 +113,21 @@ const schemaUid = await client.createSchema({
 
 // Now only addresses approved by the resolver can attest
 ```
+</CodeGroup>
 
 See [Resolvers](/concepts/resolvers) for details on implementing access control.
 
-## Verified Authority (Optional)
+## Verified Authority (Optional, Stellar only)
 
-Separately from schema authority, you can register as a **Verified Authority** on the SignetProtocol platform. This is completely optional and provides:
+<Note>
+Verified Authority registration is currently a Stellar-specific feature — there is
+no separate on-chain "verified issuer" registry on Monad. On Monad, an attester's
+trustworthiness is something your app decides off-chain (e.g. an allowlist in a
+[resolver](/concepts/resolvers), or a list your app maintains) rather than a
+protocol-level badge.
+</Note>
+
+Separately from schema authority, you can register as a **Verified Authority** on the SignetProtocol platform (Stellar). This is completely optional and provides:
 
 - **Platform badge** — Visual indicator that you're a verified issuer
 - **Trust signals** — Users can see your verification status
@@ -173,7 +210,8 @@ console.log('Issued by:', attestation.data.attester);
 
 ## Delegates
 
-Authorities can delegate attestation signing to other addresses using BLS delegation. This enables:
+Authorities can delegate attestation signing to other addresses — EIP-712 on Monad,
+BLS on Stellar. This enables:
 
 - **Gasless attestations** — Users sign off-chain, a relayer submits on-chain
 - **Batch operations** — Issue many attestations in one transaction
@@ -218,7 +256,7 @@ Keep your private keys secure. While attestations are permissionless, your verif
     Define attestation structures
   </Card>
   <Card title="Delegates" icon="signature" href="/concepts/delegates">
-    Enable off-chain signing with BLS delegation
+    Enable off-chain signing — EIP-712 on Monad, BLS on Stellar
   </Card>
   <Card title="Examples" icon="book-open" href="/examples/kyc-verification">
     See real-world implementations

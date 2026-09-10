@@ -11,16 +11,19 @@ A signed statement by an issuer about a subject, stored on-chain.
 
 ## Attestation Properties
 
-| Property | Description |
-|----------|-------------|
-| `uid` | Unique identifier (32 bytes) |
-| `schemaUid` | Reference to schema structure |
-| `attester` | Who created the attestation |
-| `subject` | Who the attestation is about |
-| `value` | Attestation data (JSON string) |
-| `timestamp` | When created |
-| `expirationTime` | When it expires (optional) |
-| `revoked` | Whether invalidated |
+The fields are the same concept on every chain; only the wire format of the data
+payload and a couple of names differ:
+
+| Property | Monad (`evm-sdk`) | Stellar (`stellar-sdk`) |
+|----------|--------------------|--------------------------|
+| Unique identifier | `uid` (32-byte hex) | `uid` (32 bytes) |
+| Reference to schema | `schemaUID` | `schemaUid` |
+| Who created it | `attester` | `attester` |
+| Who it's about | `subject` | `subject` |
+| Attestation data | `data` — ABI-encoded `bytes`, per the schema definition | `value` — JSON string |
+| When created | `time` | `timestamp` |
+| When it expires | `expirationTime` (0 = never) | `expirationTime` (optional) |
+| Revoked? | `revoked` | `revoked` |
 
 ## Lifecycle
 
@@ -52,13 +55,27 @@ stateDiagram-v2
 
 Every attestation references a schema that defines its structure:
 
-```typescript
+<CodeGroup>
+```typescript Monad
+// Schema defines structure
+const definition = 'bool verified,string level'
+
+// Data is ABI-encoded to match it
+import { encodeAbiParameters } from 'viem'
+const data = encodeAbiParameters(
+  [{ type: 'bool' }, { type: 'string' }],
+  [true, 'basic'],
+)
+```
+
+```typescript Stellar
 // Schema defines structure
 'struct KYC { bool verified; string level; }'
 
 // Attestation follows structure
 { verified: true, level: 'basic' }
 ```
+</CodeGroup>
 
 ## Next Steps
 
@@ -67,6 +84,6 @@ Every attestation references a schema that defines its structure:
     Learn about schema design
   </Card>
   <Card title="Delegates" icon="key" href="/concepts/delegates">
-    Off-chain signing with BLS keys
+    Off-chain signing — EIP-712 on Monad, BLS on Stellar
   </Card>
 </CardGroup>

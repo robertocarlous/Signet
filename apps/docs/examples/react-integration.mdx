@@ -303,6 +303,144 @@ export function useCreateAttestation() {
 }
 ```
 
+---
+
+## Monad Implementation
+
+Same shape as above — a context holding the client, a verify hook, a create hook —
+built on `evm-sdk` + `viem` instead. No wallet-kit signer wrapper needed: a viem
+`walletClient` already implements `signTypedData` / `writeContract` directly.
+
+### Installation
+
+```bash
+npm install @signetprotocol/evm-sdk viem
+```
+
+### SDK Context
+
+```typescript
+// contexts/SignetContext.tsx
+import { createContext, useContext, useMemo, ReactNode } from 'react'
+import { createPublicClient, createWalletClient, custom, http } from 'viem'
+import { SignetClient } from '@signetprotocol/evm-sdk'
+
+interface SignetContextType {
+  signet: SignetClient | null
+  isReady: boolean
+}
+
+const SignetContext = createContext<SignetContextType | undefined>(undefined)
+
+interface Props {
+  children: ReactNode
+  account: `0x${string}` | null // from your wallet connector (e.g. injected provider)
+}
+
+export function SignetProvider({ children, account }: Props) {
+  const signet = useMemo(() => {
+    const transport = http('https://rpc.ankr.com/monad_testnet')
+    const publicClient = createPublicClient({ transport })
+
+    if (!account || typeof window === 'undefined' || !(window as any).ethereum) {
+      return new SignetClient({ chain: 'monadTestnet', publicClient }) // read-only
+    }
+
+    const walletClient = createWalletClient({
+      account,
+      transport: custom((window as any).ethereum),
+    })
+    return new SignetClient({ chain: 'monadTestnet', publicClient, walletClient })
+  }, [account])
+
+  return <SignetContext.Provider value={{ signet, isReady: !!signet }}>{children}</SignetContext.Provider>
+}
+
+export function useSignet() {
+  const context = useContext(SignetContext)
+  if (!context) throw new Error('useSignet must be used within SignetProvider')
+  return context
+}
+```
+
+### Verification Hook
+
+```typescript
+// hooks/useVerifyAttestation.ts
+import { useState, useCallback } from 'react'
+import { decodeAbiParameters, type Hex } from 'viem'
+import { useSignet } from '../contexts/SignetContext'
+
+interface VerificationResult {
+  isValid: boolean
+  data: readonly unknown[] | null
+  error: string | null
+}
+
+export function useVerifyAttestation() {
+  const { signet } = useSignet()
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<VerificationResult | null>(null)
+
+  const verify = useCallback(
+    async (attestationUID: Hex, fields: readonly { type: string }[]) => {
+      if (!signet) {
+        setResult({ isValid: false, data: null, error: 'SDK not initialized' })
+        return
+      }
+      setLoading(true)
+      try {
+        if (!(await signet.isValid(attestationUID))) {
+          setResult({ isValid: false, data: null, error: 'Missing, expired, or revoked' })
+          return
+        }
+        const attestation = await signet.getAttestation(attestationUID)
+        const decoded = decodeAbiParameters(fields, attestation.data)
+        setResult({ isValid: true, data: decoded, error: null })
+      } catch (err) {
+        setResult({ isValid: false, data: null, error: err instanceof Error ? err.message : 'Verification failed' })
+      } finally {
+        setLoading(false)
+      }
+    },
+    [signet],
+  )
+
+  return { verify, loading, result }
+}
+```
+
+### Issuing Attestations
+
+```typescript
+// hooks/useCreateAttestation.ts
+import { useState, useCallback } from 'react'
+import { encodeAbiParameters, type Address, type Hex } from 'viem'
+import { useSignet } from '../contexts/SignetContext'
+
+export function useCreateAttestation() {
+  const { signet } = useSignet()
+  const [loading, setLoading] = useState(false)
+
+  const create = useCallback(
+    async (schemaUID: Hex, fields: readonly { type: string }[], values: readonly unknown[], subject: Address) => {
+      if (!signet) throw new Error('SDK not initialized')
+      setLoading(true)
+      try {
+        const data = encodeAbiParameters(fields, values)
+        const { hash, uid } = await signet.attest({ schemaUID, subject, data })
+        return { txHash: hash, attestationUID: uid }
+      } finally {
+        setLoading(false)
+      }
+    },
+    [signet],
+  )
+
+  return { create, loading }
+}
+```
+
 ## Next Steps
 
 <CardGroup cols={2}>

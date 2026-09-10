@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "name": "Signet",
-  "description": "Decentralized attestation infrastructure on Stellar. Build verifiable credential systems with cryptographic delegation and payment-gated resolvers.",
+  "description": "Decentralized attestation infrastructure — live on Monad, originally built on Stellar. Build verifiable credential systems with cryptographic delegation and payment-gated resolvers.",
   "theme": "aspen",
   "logo": {
     "light": "/images/logo-light.svg",
@@ -41,21 +41,21 @@
             ]
           },
           {
-            "group": "Stellar",
-            "pages": [
-              "stellar/getting-started",
-              "stellar/schemas",
-              "stellar/reference",
-              "chains/stellar/overview"
-            ]
-          },
-          {
             "group": "Monad",
             "pages": [
               "monad/overview",
               "monad/quickstart",
               "monad/passkey-personhood",
               "monad/why-signet"
+            ]
+          },
+          {
+            "group": "Stellar",
+            "pages": [
+              "stellar/getting-started",
+              "stellar/schemas",
+              "stellar/reference",
+              "chains/stellar/overview"
             ]
           },
           {

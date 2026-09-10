@@ -44,9 +44,27 @@ flowchart TD
 
 ## Resolver Interface
 
-All resolvers implement the same interface, making them pluggable and interchangeable:
+All resolvers implement the same interface, making them pluggable and interchangeable.
+The hooks and semantics are identical across chains — only the language differs:
 
-```rust
+<CodeGroup>
+```solidity Monad
+interface IResolver {
+    // Pre-creation gate. Return false (or revert) to block.
+    function onAttest(Attestation calldata attestation) external returns (bool allowed);
+
+    // Pre-revocation gate. Same semantics.
+    function onRevoke(Attestation calldata attestation) external returns (bool allowed);
+
+    // Post-processing, best-effort (failure doesn't undo the attestation).
+    function onResolve(bytes32 attestationUID, address attester) external;
+
+    // Descriptive metadata for discovery/integration.
+    function metadata() external view returns (ResolverMetadata memory);
+}
+```
+
+```rust Stellar
 pub trait ResolverInterface {
     // Validate before attestation creation
     fn onattest(env: Env, attestation: ResolverAttestationData) -> Result<bool, ResolverError>;
@@ -61,6 +79,14 @@ pub trait ResolverInterface {
     fn metadata(env: Env) -> ResolverMetadata;
 }
 ```
+</CodeGroup>
+
+<Tip>
+On Monad you don't usually implement `IResolver` directly — extend the abstract
+`SchemaResolver` base contract instead. It wires the hooks, restricts calls to the
+attestation registry, and gives you simple `_onAttest` / `_onRevoke` overrides (see
+[Creating a Custom Resolver](#creating-a-custom-resolver) below).
+</Tip>
 
 ### Hook Functions
 
@@ -79,7 +105,23 @@ pub trait ResolverInterface {
 
 Resolvers receive complete attestation data for validation:
 
-```rust
+<CodeGroup>
+```solidity Monad
+struct Attestation {
+    bytes32 uid;
+    bytes32 schemaUID;
+    address subject;         // who is being attested about
+    address attester;        // who is attesting
+    uint64 nonce;
+    uint64 time;              // creation timestamp
+    uint64 expirationTime;    // 0 = never
+    uint64 revocationTime;    // 0 = not revoked
+    bool revoked;
+    bytes data;                // schema-encoded attestation value
+}
+```
+
+```rust Stellar
 pub struct ResolverAttestationData {
     pub uid: BytesN<32>,           // Unique attestation ID
     pub schema_uid: BytesN<32>,    // Associated schema
@@ -94,6 +136,14 @@ pub struct ResolverAttestationData {
     pub value: i128,               // Optional payment value
 }
 ```
+</CodeGroup>
+
+<Note>
+The patterns below (Default, Fee Collection, Token Reward, Authority-gated) are
+shown as Soroban/Rust pseudocode, but the same logic applies on Monad through the
+same four hooks — see [Creating a Custom Resolver](#creating-a-custom-resolver)
+for a real Solidity example (`SampleResolver`, an allowlist gate).
+</Note>
 
 ## Resolver Types
 
@@ -207,83 +257,179 @@ impl ResolverInterface for AuthorityResolver {
 
 ## Creating a Custom Resolver
 
-### Step 1: Implement the Interface
+<Tabs>
+  <Tab title="Monad">
+    ### Step 1: Extend `SchemaResolver`
 
-```rust
-use soroban_sdk::{contract, contractimpl, Env, Address, BytesN, String};
-use resolvers::{ResolverInterface, ResolverAttestationData, ResolverError, ResolverMetadata, ResolverType};
+    `SchemaResolver` is the abstract base every resolver in `contracts/evm` uses —
+    it wires the `IResolver` hooks and restricts calls to the attestation
+    registry, leaving you just `_onAttest` / `_onRevoke` / `_onResolve` /
+    `metadata` to override. This is the real `SampleResolver` shipped in the
+    repo — an allowlist gate:
 
-#[contract]
-pub struct MyCustomResolver;
+    ```solidity
+    // SPDX-License-Identifier: MIT
+    pragma solidity 0.8.28;
 
-#[contractimpl]
-impl ResolverInterface for MyCustomResolver {
-    fn onattest(env: Env, attestation: ResolverAttestationData) -> Result<bool, ResolverError> {
-        // Your validation logic here
-        attestation.attester.require_auth();
+    import { SchemaResolver } from "./SchemaResolver.sol";
+    import { Attestation, ResolverMetadata } from "../lib/Types.sol";
 
-        // Example: Only allow attestations on weekdays
-        // (This is just an example - implement your own logic)
+    contract SampleResolver is SchemaResolver {
+        address public immutable owner;
+        mapping(address attester => bool allowed) public allowlisted;
 
-        Ok(true)
-    }
+        event AllowlistUpdated(address indexed attester, bool allowed);
 
-    fn onrevoke(env: Env, attestation: ResolverAttestationData) -> Result<bool, ResolverError> {
-        attestation.attester.require_auth();
-
-        if !attestation.revocable {
-            return Err(ResolverError::ValidationFailed);
+        constructor(address attestationRegistry_, address owner_)
+            SchemaResolver(attestationRegistry_)
+        {
+            owner = owner_;
         }
 
-        Ok(true)
-    }
+        function setAllowlisted(address attester, bool allowed) external {
+            require(msg.sender == owner, "not owner");
+            allowlisted[attester] = allowed;
+            emit AllowlistUpdated(attester, allowed);
+        }
 
-    fn onresolve(_env: Env, _attestation_uid: BytesN<32>, _attester: Address) -> Result<(), ResolverError> {
-        // Optional post-processing
-        Ok(())
-    }
+        // Override just the hook you need — defaults accept everything.
+        function _onAttest(Attestation calldata attestation) internal view override returns (bool) {
+            return allowlisted[attestation.attester];
+        }
 
-    fn metadata(env: Env) -> ResolverMetadata {
-        ResolverMetadata {
-            name: String::from_str(&env, "My Custom Resolver"),
-            version: String::from_str(&env, "1.0.0"),
-            description: String::from_str(&env, "Custom validation for my use case"),
-            resolver_type: ResolverType::Custom,
+        function metadata() external pure override returns (ResolverMetadata memory) {
+            return ResolverMetadata({ name: "SampleResolver", version: "0.1.0", resolverType: "allowlist" });
         }
     }
-}
-```
+    ```
 
-### Step 2: Build the Contract
+    ### Step 2: Build
 
-```bash
-cargo build --target wasm32v1-none --release
-```
+    ```bash
+    cd contracts/evm
+    forge build
+    ```
 
-### Step 3: Deploy to Stellar
+    ### Step 3: Deploy to Monad testnet
 
-```bash
-stellar contract deploy \
-  --wasm target/wasm32v1-none/release/my_resolver.wasm \
-  --source YOUR_IDENTITY \
-  --network testnet
-```
+    ```bash
+    forge create src/resolvers/SampleResolver.sol:SampleResolver \
+      --rpc-url monad_testnet --private-key 0x… \
+      --constructor-args <attestationRegistryAddress> <ownerAddress> \
+      --broadcast
+    ```
 
-### Step 4: Attach to a Schema
+    ### Step 4: Attach to a Schema
 
-```typescript
-const schemaUid = await client.createSchema({
-  definition: 'string credential, uint64 issuedAt',
-  resolver: 'CRESOLVER...', // Your deployed resolver address
-  revocable: true
-});
-```
+    ```ts
+    const { uid: schemaUID } = await signet.registerSchema({
+      definition: 'string credential,uint64 issuedAt',
+      resolver: '0xYourDeployedResolver...',
+      revocable: true,
+    })
+    ```
+  </Tab>
+  <Tab title="Stellar">
+    ### Step 1: Implement the Interface
+
+    ```rust
+    use soroban_sdk::{contract, contractimpl, Env, Address, BytesN, String};
+    use resolvers::{ResolverInterface, ResolverAttestationData, ResolverError, ResolverMetadata, ResolverType};
+
+    #[contract]
+    pub struct MyCustomResolver;
+
+    #[contractimpl]
+    impl ResolverInterface for MyCustomResolver {
+        fn onattest(env: Env, attestation: ResolverAttestationData) -> Result<bool, ResolverError> {
+            // Your validation logic here
+            attestation.attester.require_auth();
+
+            // Example: Only allow attestations on weekdays
+            // (This is just an example - implement your own logic)
+
+            Ok(true)
+        }
+
+        fn onrevoke(env: Env, attestation: ResolverAttestationData) -> Result<bool, ResolverError> {
+            attestation.attester.require_auth();
+
+            if !attestation.revocable {
+                return Err(ResolverError::ValidationFailed);
+            }
+
+            Ok(true)
+        }
+
+        fn onresolve(_env: Env, _attestation_uid: BytesN<32>, _attester: Address) -> Result<(), ResolverError> {
+            // Optional post-processing
+            Ok(())
+        }
+
+        fn metadata(env: Env) -> ResolverMetadata {
+            ResolverMetadata {
+                name: String::from_str(&env, "My Custom Resolver"),
+                version: String::from_str(&env, "1.0.0"),
+                description: String::from_str(&env, "Custom validation for my use case"),
+                resolver_type: ResolverType::Custom,
+            }
+        }
+    }
+    ```
+
+    ### Step 2: Build the Contract
+
+    ```bash
+    cargo build --target wasm32v1-none --release
+    ```
+
+    ### Step 3: Deploy to Stellar
+
+    ```bash
+    stellar contract deploy \
+      --wasm target/wasm32v1-none/release/my_resolver.wasm \
+      --source YOUR_IDENTITY \
+      --network testnet
+    ```
+
+    ### Step 4: Attach to a Schema
+
+    ```typescript
+    const schemaUid = await client.createSchema({
+      definition: 'string credential, uint64 issuedAt',
+      resolver: 'CRESOLVER...', // Your deployed resolver address
+      revocable: true
+    });
+    ```
+  </Tab>
+</Tabs>
 
 ## Binding Resolvers to Schemas
 
 When you create a schema, you can optionally attach a resolver:
 
-```typescript
+<CodeGroup>
+```typescript Monad
+import { SignetClient } from '@signetprotocol/evm-sdk'
+
+const signet = new SignetClient({ chain: 'monadTestnet', publicClient, walletClient })
+
+// Schema with a resolver
+const { uid: withResolver } = await signet.registerSchema({
+  definition: 'string credential,bool verified',
+  resolver: '0xYourResolver...',
+  revocable: true,
+})
+
+// Schema without a resolver (permissionless - anyone can attest)
+const { uid: withoutResolver } = await signet.registerSchema({
+  definition: 'string note',
+  // resolver omitted = no resolver = anyone can attest
+  revocable: false,
+})
+```
+
+```typescript Stellar
 import { StellarAttestationClient } from '@signetprotocol/stellar-sdk';
 
 const client = new StellarAttestationClient({ network: 'testnet' });
@@ -302,6 +448,7 @@ const schemaWithoutResolver = await client.createSchema({
   revocable: false
 });
 ```
+</CodeGroup>
 
 <Info>
 Once a schema is created, its resolver cannot be changed. Choose your resolver carefully before deploying to production.
@@ -309,9 +456,16 @@ Once a schema is created, its resolver cannot be changed. Choose your resolver c
 
 ## Error Handling
 
-Resolvers use a standard error enum:
+<CodeGroup>
+```solidity Monad
+// Monad resolvers just revert — no shared error enum required.
+// The base SchemaResolver already reverts SignetErrors.NotAuthorized()
+// for any caller that isn't the attestation registry.
+if (!allowlisted[attestation.attester]) revert NotAllowed(attestation.attester);
+```
 
-```rust
+```rust Stellar
+// Resolvers use a standard error enum:
 #[contracterror]
 pub enum ResolverError {
     NotAuthorized = 1,      // Caller lacks permission
@@ -324,6 +478,7 @@ pub enum ResolverError {
     CustomError = 8,        // Custom error condition
 }
 ```
+</CodeGroup>
 
 ## Security Considerations
 
@@ -333,24 +488,52 @@ Resolver bugs can lead to unauthorized attestations or denial of service. Test t
 
 ### Best Practices
 
-1. **Always require auth** — Call `require_auth()` on the attester
-2. **Validate all inputs** — Don't trust data from the protocol
-3. **Handle failures gracefully** — Return proper error codes
-4. **Avoid state dependencies** — Don't rely on external state that can be manipulated
-5. **Test edge cases** — Expired attestations, revocations, etc.
+<Tabs>
+  <Tab title="Monad">
+    1. **Restrict to the registry** — `SchemaResolver`'s `onlyRegistry` modifier already does this; don't bypass it.
+    2. **Validate all inputs** — don't trust `attestation.data` blindly; decode and check it.
+    3. **Revert with a clear reason** — custom errors (`revert MyError(...)`) beat silent `false` returns for debuggability.
+    4. **Avoid state dependencies** — don't rely on external state (oracle prices, other contracts) that can be manipulated mid-transaction.
+    5. **Test edge cases** — `forge test` expired attestations, revocations, self-attestation, etc.
+  </Tab>
+  <Tab title="Stellar">
+    1. **Always require auth** — Call `require_auth()` on the attester
+    2. **Validate all inputs** — Don't trust data from the protocol
+    3. **Handle failures gracefully** — Return proper error codes
+    4. **Avoid state dependencies** — Don't rely on external state that can be manipulated
+    5. **Test edge cases** — Expired attestations, revocations, etc.
+  </Tab>
+</Tabs>
 
 ### Common Pitfalls
 
 | Pitfall | Issue | Solution |
 |---------|-------|----------|
-| Missing auth check | Anyone can attest | Always call `require_auth()` |
-| Self-attestation | Users attest to themselves | Check `attester != recipient` |
-| Expired data | Using outdated timestamps | Validate against current time |
+| Missing access check | Anyone can attest | Monad: keep `onlyRegistry`; Stellar: always call `require_auth()` |
+| Self-attestation | Users attest to themselves | Check `attester != subject` |
+| Expired data | Using outdated timestamps | Validate against current block/ledger time |
 | Reentrancy | Token callbacks | Use checks-effects-interactions pattern |
 
 ## Testing Resolvers
 
-```rust
+<CodeGroup>
+```solidity Monad
+// contracts/evm/test — run with `forge test`
+function test_RejectsNonAllowlistedAttester() public {
+    vm.prank(address(attestationRegistry));
+    bool allowed = resolver.onAttest(buildAttestation(attacker, subject));
+    assertFalse(allowed);
+}
+
+function test_AcceptsAllowlistedAttester() public {
+    resolver.setAllowlisted(attester, true);
+    vm.prank(address(attestationRegistry));
+    bool allowed = resolver.onAttest(buildAttestation(attester, subject));
+    assertTrue(allowed);
+}
+```
+
+```rust Stellar
 #[test]
 fn test_reject_self_attestation() {
     let (env, resolver) = setup();
@@ -373,18 +556,30 @@ fn test_accept_valid_attestation() {
     assert!(resolver.onattest(&attestation));
 }
 ```
+</CodeGroup>
 
 ## Built-in Resolvers
 
-The protocol provides pre-built resolvers you can use:
+<CodeGroup>
+```text Monad
+SchemaResolver     abstract base — extend this for your own resolver
+SampleResolver     reference allowlist gate (see above)
+PersonhoodResolver locks the personhood schema to PasskeyAttester only
+```
 
-| Resolver | Purpose | Build Command |
-|----------|---------|---------------|
-| Default | Basic validation | `--features export-default-resolver` |
-| Token Reward | Distribute rewards | `--features export-token-reward-resolver` |
-| Fee Collection | Collect fees | `--features export-fee-collection-resolver` |
+```bash Monad
+cd contracts/evm
+forge build
+forge test   # 35 tests, including the resolvers
+```
 
-```bash
+```text Stellar
+Default        Basic validation                --features export-default-resolver
+Token Reward    Distribute rewards              --features export-token-reward-resolver
+Fee Collection  Collect fees                    --features export-fee-collection-resolver
+```
+
+```bash Stellar
 # Build the default resolver
 cargo build --target wasm32v1-none --release --features export-default-resolver
 
@@ -394,10 +589,14 @@ stellar contract deploy \
   --source YOUR_IDENTITY \
   --network testnet
 ```
+</CodeGroup>
 
 ## Next Steps
 
 <CardGroup cols={2}>
+  <Card title="Monad Overview" icon="rocket" href="/monad/overview">
+    Live resolver addresses and contract architecture
+  </Card>
   <Card title="Authorities" icon="shield" href="/concepts/authorities">
     Understand the trust layer for attestation issuers
   </Card>

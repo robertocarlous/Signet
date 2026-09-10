@@ -5,22 +5,31 @@ description: 'Off-chain signing with BLS keys for scalable attestation issuance'
 
 ## What are Delegates?
 
-Delegates are addresses authorized to submit attestations on behalf of an authority. The authority signs attestation data off-chain using BLS keys, and the delegate submits the transaction on-chain.
+Delegates are addresses authorized to submit attestations on behalf of an attester.
+The attester signs attestation data off-chain; the delegate (anyone) submits the
+transaction on-chain and pays gas. The signature scheme differs by chain:
+
+| Chain | Scheme | Signed by |
+|---|---|---|
+| Monad (EVM) | EIP-712 typed-data (ECDSA / secp256k1) | The attester's regular wallet key — no separate keypair |
+| Stellar (Soroban) | BLS12-381 | A dedicated BLS keypair, registered on-chain once |
 
 ```mermaid
 sequenceDiagram
-    participant A as Authority<br/>(BLS private key)
-    participant D as Delegate<br/>(Stellar wallet)
+    participant A as Attester<br/>(signs off-chain)
+    participant D as Delegate<br/>(submits, pays gas)
     participant C as Smart Contract
     A->>A: 1. Sign attestation data off-chain
-    Note over A: BLS Signature
-    A->>D: 2. Submit with signature
+    Note over A: EIP-712 (Monad) or BLS (Stellar)
+    A->>D: 2. Hand over the signed request
     D->>C: Submit attestation
     C->>C: Verifies signature<br/>Creates attestation
 ```
 
 <Note>
-The authority can also act as their own delegate. This is useful when you want to use BLS signing for your own submissions, bear gas fees directly, or keep the workflow simple without involving third parties.
+The attester can also act as their own delegate — sign, then submit their own
+request. Useful for testing the flow, or when you want gas paid from the same
+wallet without involving a third party.
 </Note>
 
 ## Attester vs Subject
@@ -29,10 +38,26 @@ When an attestation is created through delegation, two key fields are set:
 
 | Field | Description |
 |-------|-------------|
-| **attester** | The delegate or authority who submits the transaction on-chain |
+| **attester** | The original signer of the request — not necessarily who submitted the transaction |
 | **subject** | The recipient of the attestation — the individual or entity being attested about |
 
-```typescript
+<CodeGroup>
+```typescript Monad
+// Attester signs off-chain (no gas)
+const request = await signet.signDelegatedAttestation({
+  schemaUID,
+  subject: '0xUser...',   // the person receiving the attestation
+  data,                     // ABI-encoded per the schema
+})
+
+// Anyone relays it (pays gas)
+const { uid } = await signet.submitDelegatedAttestation(request)
+
+// attestation.attester = the signer's address (from `request.attester`)
+// attestation.subject  = '0xUser...'
+```
+
+```typescript Stellar
 // Example: Authority signs, delegate submits
 const request = await createDelegatedAttestationRequest({
   schemaUid: Buffer.from('abc123...', 'hex'),
@@ -44,6 +69,7 @@ const request = await createDelegatedAttestationRequest({
 // attestation.attester = 'GDELEGATE...' (who submitted)
 // attestation.subject = 'GUSER123...' (who the attestation is about)
 ```
+</CodeGroup>
 
 <Info>
 The **subject** always remains the individual or entity the attestation describes, regardless of who submits the transaction.
@@ -65,13 +91,28 @@ Multiple delegates can submit on behalf of one authority. Useful for geographic 
 
 ## Self-Delegation
 
-An authority can submit their own delegated attestations. This pattern is useful for:
+An attester can submit their own delegated attestations. This pattern is useful for:
 
-- **Gas management** — Authority pays fees directly from their wallet
-- **Simplicity** — No need to coordinate with separate delegate infrastructure
-- **Testing** — Validate the delegation flow before involving third parties
+- **Gas management** — the attester pays fees directly from their own wallet
+- **Simplicity** — no need to coordinate with separate delegate infrastructure
+- **Testing** — validate the delegation flow before involving third parties
 
-```typescript
+<CodeGroup>
+```typescript Monad
+// Sign as the wallet's own account...
+const request = await signet.signDelegatedAttestation({
+  schemaUID,
+  subject: '0xSubject...',
+  data,
+})
+
+// ...then submit it with the same client (self as delegate)
+const { uid } = await signet.submitDelegatedAttestation(request)
+
+// Result: attester = the signer, subject = 0xSubject...
+```
+
+```typescript Stellar
 // Authority acts as their own delegate
 const authority = new StellarAttestationClient({
   rpcUrl: 'https://soroban-testnet.stellar.org',
@@ -93,10 +134,30 @@ const result = await authority.attestByDelegation(request, {
 
 // Result: attester = authority, subject = GSUBJECT
 ```
+</CodeGroup>
 
-## BLS Keys
+## EIP-712 Signatures (Monad)
 
-SignetProtocol uses BLS12-381 signatures for delegation. BLS offers:
+Monad's delegated attestations use [EIP-712](https://eips.ethereum.org/EIPS/eip-712)
+typed-data signatures — the same standard behind gasless approvals in most EVM
+wallets. No separate keypair or on-chain registration step:
+
+- **No key management** — the attester signs with their existing wallet (`viem`'s
+  `walletClient.signTypedData` under the hood); there's nothing extra to generate
+  or register on-chain first.
+- **Human-readable** — wallets that support EIP-712 (most do) show the attester
+  exactly what they're signing, not an opaque hash.
+- **Replay-protected** — a per-attester `nonce` and a `deadline` are filled in
+  automatically by `signDelegatedAttestation` (override them if you need to).
+
+```typescript
+// That's it — no key generation, no registration step
+const request = await signet.signDelegatedAttestation({ schemaUID, subject, data })
+```
+
+## BLS Keys (Stellar)
+
+Stellar delegation uses BLS12-381 signatures with a separate keypair. BLS offers:
 
 - **Aggregation**: Multiple signatures can be combined into one
 - **Deterministic**: Same message + key always produces same signature
@@ -124,9 +185,20 @@ This links your Stellar address to your BLS public key.
 
 ## Delegated Attestation Flow
 
-### 1. Authority: Create and Sign Request
+### 1. Attester: Create and Sign Request
 
-```typescript
+<CodeGroup>
+```typescript Monad
+// Attester signs off-chain — no gas, no prior registration
+const request = await signet.signDelegatedAttestation({
+  schemaUID,
+  subject: '0xSubject...',
+  data,
+  expirationTime: BigInt(Math.floor(Date.now() / 1000) + 86400), // 24h
+})
+```
+
+```typescript Stellar
 import { createDelegatedAttestationRequest } from '@signetprotocol/stellar-sdk';
 
 // Authority signs off-chain
@@ -137,21 +209,39 @@ const request = await createDelegatedAttestationRequest({
   expirationTime: Math.floor(Date.now() / 1000) + 86400 // 24h
 }, blsPrivateKey, client.getClientInstance());
 ```
+</CodeGroup>
 
 ### 2. Delegate: Submit On-chain
 
-```typescript
+<CodeGroup>
+```typescript Monad
+// Delegate submits the pre-signed request (pays gas)
+const { uid } = await signet.submitDelegatedAttestation(request)
+```
+
+```typescript Stellar
 // Delegate submits the pre-signed request
 await client.attestByDelegation(request, { signer: delegateSigner });
 ```
+</CodeGroup>
 
-The contract verifies the BLS signature matches the registered authority before creating the attestation.
+The contract verifies the signature matches the claimed attester before creating
+the attestation — EIP-712 recovery on Monad, a registered BLS key on Stellar.
 
 ## Delegated Revocation
 
 Same pattern for revoking attestations:
 
-```typescript
+<CodeGroup>
+```typescript Monad
+// Attester signs off-chain
+const revokeRequest = await signet.signDelegatedRevocation({ attestationUID })
+
+// Delegate submits
+const { hash } = await signet.submitDelegatedRevocation(revokeRequest)
+```
+
+```typescript Stellar
 import { createDelegatedRevocationRequest } from '@signetprotocol/stellar-sdk';
 
 // Authority signs revocation
@@ -162,6 +252,7 @@ const revokeRequest = await createDelegatedRevocationRequest({
 // Delegate submits
 await client.revokeByDelegation(revokeRequest, { signer: delegateSigner });
 ```
+</CodeGroup>
 
 ## Security Considerations
 
@@ -195,7 +286,41 @@ Deploy delegates in multiple regions. Authority in one secure location, delegate
 
 ## Complete Example
 
-```typescript
+<CodeGroup>
+```typescript Monad
+import { createPublicClient, createWalletClient, http, encodeAbiParameters } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
+import { SignetClient } from '@signetprotocol/evm-sdk'
+
+const transport = http('https://rpc.ankr.com/monad_testnet')
+
+// Attester — signs off-chain, no gas, no key registration
+const attesterAccount = privateKeyToAccount(process.env.ATTESTER_KEY as `0x${string}`)
+const attester = new SignetClient({
+  chain: 'monadTestnet',
+  publicClient: createPublicClient({ transport }),
+  walletClient: createWalletClient({ account: attesterAccount, transport }),
+})
+
+const data = encodeAbiParameters([{ type: 'bool' }, { type: 'string' }], [true, 'premium'])
+const request = await attester.signDelegatedAttestation({
+  schemaUID,
+  subject: '0xSubject...',
+  data,
+})
+
+// Delegate — submits on-chain, pays gas (can be a different wallet)
+const delegateAccount = privateKeyToAccount(process.env.DELEGATE_KEY as `0x${string}`)
+const delegate = new SignetClient({
+  chain: 'monadTestnet',
+  publicClient: createPublicClient({ transport }),
+  walletClient: createWalletClient({ account: delegateAccount, transport }),
+})
+
+const { uid } = await delegate.submitDelegatedAttestation(request)
+```
+
+```typescript Stellar
 import {
   StellarAttestationClient,
   generateBlsKeys,
@@ -231,6 +356,7 @@ const result = await delegate.attestByDelegation(request, {
   signer: delegateSigner
 });
 ```
+</CodeGroup>
 
 ## Next Steps
 

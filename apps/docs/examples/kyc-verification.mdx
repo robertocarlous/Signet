@@ -341,13 +341,86 @@ async function onKYCComplete(
 
 ---
 
+## Monad Implementation
+
+Same concept, `evm-sdk` instead of `stellar-sdk`: `data` is ABI-encoded per the
+schema (no JSON encoder object), and `subject`/`attester` are addresses.
+
+```typescript
+import { SignetClient } from '@signetprotocol/evm-sdk'
+import { encodeAbiParameters, decodeAbiParameters, type Address, type Hex } from 'viem'
+
+const KYC_FIELDS = [
+  { type: 'bool' },   // verified
+  { type: 'string' }, // level: "basic" | "enhanced" | "premium"
+  { type: 'string' }, // provider: "plaid", "jumio", etc.
+  { type: 'uint64' }, // timestamp
+] as const
+
+// 1. Register schema (one-time)
+async function registerKYCSchema(signet: SignetClient) {
+  const { uid } = await signet.registerSchema({
+    definition: 'bool verified,string level,string provider,uint64 timestamp',
+    revocable: true,
+  })
+  return uid
+}
+
+// 2. Issue a KYC attestation
+async function issueKYC(
+  signet: SignetClient,
+  schemaUID: Hex,
+  subject: Address,
+  level: 'basic' | 'enhanced' | 'premium',
+  provider: string,
+  expiresInDays = 365,
+) {
+  const data = encodeAbiParameters(KYC_FIELDS, [
+    true,
+    level,
+    provider,
+    BigInt(Math.floor(Date.now() / 1000)),
+  ])
+  const expirationTime = BigInt(Math.floor(Date.now() / 1000) + expiresInDays * 86400)
+
+  return signet.attest({ schemaUID, subject, data, expirationTime })
+}
+
+// 3. Verify a KYC attestation (anyone can call this — read-only)
+const TRUSTED_PROVIDERS: Address[] = ['0xProvider1...', '0xProvider2...']
+
+async function checkUserKYC(signet: SignetClient, attestationUID: Hex) {
+  const attestation = await signet.getAttestation(attestationUID)
+
+  if (!(await signet.isValid(attestationUID))) {
+    return { allowed: false, reason: 'KYC missing, expired, or revoked' }
+  }
+  if (!TRUSTED_PROVIDERS.includes(attestation.attester)) {
+    return { allowed: false, reason: 'Untrusted KYC provider' }
+  }
+
+  const [verified, level, provider] = decodeAbiParameters(KYC_FIELDS, attestation.data)
+  if (!verified) return { allowed: false, reason: 'KYC not verified' }
+
+  return { allowed: true, level, provider, subject: attestation.subject }
+}
+
+// 4. Revoke
+async function revokeKYC(signet: SignetClient, attestationUID: Hex) {
+  return signet.revoke(attestationUID)
+}
+```
+
 ## Next Steps
 
 <CardGroup cols={2}>
   <Card title="Event Attendance" icon="calendar-check" href="/examples/event-attendance">
     Attendance verification and badges
   </Card>
+  <Card title="Monad SDK Reference" icon="rocket" href="/monad/quickstart">
+    evm-sdk quickstart
+  </Card>
   <Card title="SDK Reference" icon="code" href="/stellar/reference">
-    Complete API documentation
+    Complete Stellar API documentation
   </Card>
 </CardGroup>

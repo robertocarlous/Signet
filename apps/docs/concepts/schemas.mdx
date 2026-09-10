@@ -35,24 +35,53 @@ Schemas are registered on-chain with unique identifiers. Applications can query 
 
 ## Field Types
 
-Schemas support these primitive types:
+<Tabs>
+  <Tab title="Monad">
+    A schema `definition` on Monad is a plain Solidity ABI type list — the same
+    types `encodeAbiParameters` (viem) or any ABI encoder understands:
 
-| Type | Size | Description |
-|------|------|-------------|
-| `bool` | 1 bit | True/false |
-| `string` | Variable | Text data |
-| `u32` | 32 bits | Unsigned integer |
-| `u64` | 64 bits | Unsigned integer (timestamps) |
-| `i32` | 32 bits | Signed integer |
-| `i64` | 64 bits | Signed integer |
-| `i128` | 128 bits | Large signed integer |
-| `bytes` | Variable | Binary data |
-| `address` | 56 chars | Stellar wallet address |
-| `symbol` | Variable | Soroban symbol type |
-| `timestamp` | 64 bits | Unix timestamp |
-| `amount` | Variable | Token amounts |
+    | Type | Description |
+    |------|-------------|
+    | `bool` | True/false |
+    | `string` | Text data |
+    | `uint8` … `uint256` | Unsigned integers (`uint64` for timestamps is common) |
+    | `int8` … `int256` | Signed integers |
+    | `bytes` / `bytes32` | Binary data |
+    | `address` | An EVM address (20 bytes) |
 
-## Encoding Formats
+    ```ts
+    const definition = 'bool verified,string level,uint64 verifiedAt,address subject'
+    ```
+
+    There's a single encoding: [`encodeAbiParameters`](https://viem.sh/docs/abi/encodeAbiParameters)
+    from viem, matching the type list 1:1. No separate schema-encoder object needed.
+  </Tab>
+  <Tab title="Stellar">
+    Schemas support these primitive types:
+
+    | Type | Size | Description |
+    |------|------|-------------|
+    | `bool` | 1 bit | True/false |
+    | `string` | Variable | Text data |
+    | `u32` | 32 bits | Unsigned integer |
+    | `u64` | 64 bits | Unsigned integer (timestamps) |
+    | `i32` | 32 bits | Signed integer |
+    | `i64` | 64 bits | Signed integer |
+    | `i128` | 128 bits | Large signed integer |
+    | `bytes` | Variable | Binary data |
+    | `address` | 56 chars | Stellar wallet address |
+    | `symbol` | Variable | Soroban symbol type |
+    | `timestamp` | 64 bits | Unix timestamp |
+    | `amount` | Variable | Token amounts |
+  </Tab>
+</Tabs>
+
+## Encoding Formats (Stellar)
+
+<Note>
+This section is Stellar-specific. On Monad, encoding is just ABI encoding — see
+the Monad tab above, no separate encoder or format choice involved.
+</Note>
 
 The SDK's `SorobanSchemaEncoder` supports multiple encoding formats. Your choice of format affects how data is stored and indexed.
 
@@ -154,16 +183,27 @@ All three formats are fully supported by the SignetProtocol indexer and explorer
 
 ## Schema UID
 
-Every schema has a unique identifier derived from:
+Every schema has a unique identifier deterministically derived from its fields —
+the exact hash inputs differ slightly by chain, but the guarantee is the same:
 
-```
-UID = hash(definition + authority + resolver)
+<CodeGroup>
+```text Monad
+uid = keccak256(abi.encode(
+  SCHEMA_DOMAIN, keccak256(definition), authority, resolver, revocable
+))
 ```
 
-This means:
+```text Stellar
+uid = hash(definition + authority + resolver)
+```
+</CodeGroup>
+
+This means, on either chain:
 - Same definition by different authorities = different UIDs
 - Same authority, different definition = different UIDs
-- Identical inputs always produce the same UID
+- Identical inputs always produce the same UID — you can compute it locally
+  before registering (`signet.computeSchemaUid(...)` on Monad,
+  `client.generateSchemaUid(...)` on Stellar)
 
 ## Resolvers
 
@@ -234,10 +274,13 @@ updatedAt: u64
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card title="Create a Schema" icon="plus" href="/stellar/schemas">
+  <Card title="Monad Quickstart" icon="rocket" href="/monad/quickstart">
+    Register a schema and attest on Monad
+  </Card>
+  <Card title="Create a Schema (Stellar)" icon="plus" href="/stellar/schemas">
     Step-by-step guide for Stellar
   </Card>
   <Card title="SDK Reference" icon="code" href="/stellar/reference">
-    Complete API documentation
+    Complete Stellar API documentation
   </Card>
 </CardGroup>

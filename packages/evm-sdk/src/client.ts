@@ -30,6 +30,14 @@ export interface WriteResult {
   uid: Hex
 }
 
+/**
+ * Read and write Signet schemas and attestations on Monad.
+ *
+ * Construct with a `publicClient` for reads, and add a `walletClient` (with a
+ * connected `account`) to also call the write methods (`registerSchema`, `attest`,
+ * `revoke`, and the delegated/personhood variants). See the package README for a
+ * full walkthrough.
+ */
 export class SignetClient {
   readonly chainId: number
   readonly addresses: SignetAddresses
@@ -80,6 +88,7 @@ export class SignetClient {
 
   // -------------------------------------------------------------------- reads
 
+  /** Fetch a registered schema by its UID. Reverts on-chain if it isn't registered. */
   async getSchema(uid: Hex): Promise<Schema> {
     return (await this.publicClient.readContract({
       address: this.addresses.schemaRegistry,
@@ -89,6 +98,7 @@ export class SignetClient {
     })) as Schema
   }
 
+  /** Whether a schema UID has been registered. Safe to call before `getSchema`. */
   isSchemaRegistered(uid: Hex): Promise<boolean> {
     return this.publicClient.readContract({
       address: this.addresses.schemaRegistry,
@@ -98,6 +108,7 @@ export class SignetClient {
     }) as Promise<boolean>
   }
 
+  /** Fetch the full record for an attestation UID (schema, subject, attester, data, timestamps). */
   async getAttestation(uid: Hex): Promise<Attestation> {
     return (await this.publicClient.readContract({
       address: this.addresses.attestationRegistry,
@@ -107,6 +118,7 @@ export class SignetClient {
     })) as Attestation
   }
 
+  /** Whether an attestation exists, is not expired, and has not been revoked. */
   isValid(uid: Hex): Promise<boolean> {
     return this.publicClient.readContract({
       address: this.addresses.attestationRegistry,
@@ -116,6 +128,7 @@ export class SignetClient {
     }) as Promise<boolean>
   }
 
+  /** The attester's current attestation nonce — pass explicitly to {@link signDelegatedAttestation} if signing multiple in a row. */
   async getNonce(attester: Address): Promise<bigint> {
     return BigInt(
       (await this.publicClient.readContract({
@@ -127,6 +140,7 @@ export class SignetClient {
     )
   }
 
+  /** The revoker's current revocation nonce — pass explicitly to {@link signDelegatedRevocation} if signing multiple in a row. */
   async getRevocationNonce(revoker: Address): Promise<bigint> {
     return BigInt(
       (await this.publicClient.readContract({
@@ -165,6 +179,11 @@ export class SignetClient {
 
   // ------------------------------------------------------------------- writes
 
+  /**
+   * Register a new schema. `msg.sender` (the `walletClient`'s account) becomes its
+   * `authority`. Registering the same `(definition, authority, resolver, revocable)`
+   * twice is a no-op — it returns the same deterministic `uid` either way.
+   */
   async registerSchema(args: { definition: string; resolver?: Address; revocable: boolean }): Promise<WriteResult> {
     const { wallet, account, chain } = this.write()
     const resolver = args.resolver ?? ZERO_ADDRESS
@@ -183,6 +202,11 @@ export class SignetClient {
     return { hash, uid }
   }
 
+  /**
+   * Write a direct attestation. `msg.sender` (the `walletClient`'s account) becomes
+   * the `attester` and pays gas. If the schema has a `resolver`, its `onAttest` hook
+   * can revert or return `false` to block this — see the schema's resolver contract.
+   */
   async attest(args: AttestArgs): Promise<WriteResult> {
     const { wallet, account, chain } = this.write()
     const expirationTime = args.expirationTime ?? 0n
@@ -197,6 +221,7 @@ export class SignetClient {
     return { hash, uid: await this.#uidFromAttestedLog(hash) }
   }
 
+  /** Revoke an attestation. `msg.sender` must be its original `attester`, and its schema must be `revocable`. */
   async revoke(attestationUID: Hex): Promise<{ hash: Hex }> {
     const { wallet, account, chain } = this.write()
     const hash = await wallet.writeContract({
@@ -247,6 +272,10 @@ export class SignetClient {
     return { ...base, signature }
   }
 
+  /**
+   * Sign a delegated revocation with the wallet's account. Returns a request ready
+   * to hand to a relayer / {@link submitDelegatedRevocation}.
+   */
   async signDelegatedRevocation(args: {
     attestationUID: Hex
     revoker?: Address
@@ -279,6 +308,7 @@ export class SignetClient {
     return { hash, uid: await this.#uidFromAttestedLog(hash) }
   }
 
+  /** Relay a signed delegated revocation (the caller pays gas). */
   async submitDelegatedRevocation(request: DelegatedRevocationRequest): Promise<{ hash: Hex }> {
     const { wallet, account, chain } = this.write()
     const hash = await wallet.writeContract({
@@ -298,6 +328,7 @@ export class SignetClient {
     return hashAttest(this.chainId, this.addresses.attestationRegistry, request)
   }
 
+  /** Local digest for a delegated revocation (parity with on-chain `hashDelegatedRevocation`). */
   hashDelegatedRevocation(request: Omit<DelegatedRevocationRequest, 'signature'>): Hex {
     return hashRevoke(this.chainId, this.addresses.attestationRegistry, request)
   }

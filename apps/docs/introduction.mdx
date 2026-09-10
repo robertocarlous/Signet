@@ -1,27 +1,42 @@
 ---
 title: "Introduction"
-description: "Add proof to anything, on-chain without writing a line of code"
+description: "Add proof to anything, on-chain, with no admin and no middleman"
 ---
 
 import ContractAddresses from "/snippets/contracts.mdx"
 
 ## Whenever you need to prove something onchain — *identity, action, ownership, or permission* — you don't need to write a new smart contract or spin up a ZK system.
 
-Attest provides a proof infrastructure to build anything from **network states, DAOs, DePIN, and RWA**. With our **Unified Trust Framework,** developers on Stellar can integrate reputation and trust mechanisms in their dApps.
-
-## Add proof to anything, on-chain without writing a line of code.
-
-SignetProtocol is a Soroban-based framework that lets you attach attestations to any wallet, asset, or event. Whether that's *proof of identity, contribution, credential, or ownership.* No contracts, no infrastructure, no ZK black magic required.
+Signet is a **permissionless attestation protocol**: anyone registers a schema, anyone
+issues cryptographically-verifiable claims ("attestations") about a subject, and any
+application can read and trust them with no API key and no middleman.
 
 <Tip>
 Think of it like SSL for blockchains — a lightweight trust signal you can apply anywhere.
 </Tip>
 
+## Live on Monad, originally built on Stellar
+
+Signet's primary deployment is on **Monad** (EVM, testnet chain `10143`), where it also
+ships a Monad-native primitive: **proof of personhood from a device passkey**, verified
+entirely on chain through the RIP-7212 P-256 precompile — no seed phrase, no wallet
+required. The original implementation on **Stellar** (Soroban) is still live and
+maintained.
+
+<CardGroup cols={2}>
+  <Card title="Monad Quickstart" icon="rocket" href="/monad/quickstart">
+    Install `@signetprotocol/evm-sdk` and write your first attestation.
+  </Card>
+  <Card title="Stellar Quickstart" icon="star" href="/stellar/getting-started">
+    The original Soroban implementation.
+  </Card>
+</CardGroup>
+
 ## An Open Standard for Trust
 
-Using our **Attestation Service** you get an open standard for verifying *statements, transactions, and authorities* — identity proofs **on the blockchain**.
-
-Our **Soroban framework** enhances the reliability of digital interactions on the Stellar Network with a composable blockchain-based **Attestation Service.**
+Using our **Attestation Service** you get an open standard for verifying *statements,
+transactions, and authorities* — identity proofs **on the blockchain**, with no contracts
+to write, no infrastructure to run, and no ZK black magic required.
 
 ## Use Cases
 
@@ -68,16 +83,24 @@ Teams building:
 
 ## Key Features
 
-| Feature              | Description                                                       |
-| -------------------- | ----------------------------------------------------------------- |
-| **Authorities**      | Register as a trusted issuer and create custom attestation schemas |
-| **Resolvers**        | Define rules about who can attest — fees, permissions, rewards    |
-| **BLS Delegation**   | Sign attestations off-chain, submit on-chain. Submitter pays gas. |
-| **Flexible Schemas** | Define custom attestation structures for any use case             |
-| **Multi-Chain**      | Stellar (production) + Solana (beta)                              |
-| **Revocable**        | Invalidate attestations when credentials expire or are revoked    |
+| Feature              | Description                                                                                     |
+| --------------------- | ------------------------------------------------------------------------------------------------- |
+| **Schemas**           | Register a reusable claim definition; the registrant becomes its authority — permissionless. |
+| **Resolvers**         | Optional contract that defines who can attest — fees, allowlists, rewards, custom rules.        |
+| **Delegation**        | Sign attestations off-chain, submit on-chain — the submitter pays gas, not the attester. EIP-712 on Monad, BLS on Stellar. |
+| **Passkey personhood**| Prove a real device holder from a WebAuthn passkey — no wallet, no seed phrase (Monad).         |
+| **Multi-Chain**       | Monad (primary, EVM) + Stellar (original, Soroban) — Solana, Starknet, and Sui in development.  |
+| **Revocable**         | Invalidate attestations when credentials expire or are revoked                                   |
 
 ## Contract Addresses
+
+### Monad (testnet)
+
+See the full, always-current table on the [Monad overview](/monad/overview) page, or the
+canonical machine-readable copy in
+[`contracts/evm/deployments.json`](https://github.com/robertocarlous/Signet/blob/main/contracts/evm/deployments.json).
+
+### Stellar
 
 <ContractAddresses />
 
@@ -86,16 +109,16 @@ Programmatic access: `getContractId(network, version?)` from `@signetprotocol/st
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card title="Quickstart" icon="rocket" href="/quickstart">
-    Create your first attestation in 5 minutes
-  </Card>
-  <Card title="Authorities" icon="shield" href="/concepts/authorities">
-    Register as a trusted attestation issuer
-  </Card>
-  <Card title="Resolvers" icon="code" href="/concepts/resolvers">
-    Define custom validation rules for attestations
+  <Card title="Monad Quickstart" icon="rocket" href="/monad/quickstart">
+    Create your first attestation in minutes
   </Card>
   <Card title="How It Works" icon="lightbulb" href="/concepts/how-it-works">
     Understand the architecture
+  </Card>
+  <Card title="Passkey Personhood" icon="fingerprint" href="/monad/passkey-personhood">
+    Verify a real device holder — no wallet, no seed phrase
+  </Card>
+  <Card title="Resolvers" icon="code" href="/concepts/resolvers">
+    Define custom validation rules for attestations
   </Card>
 </CardGroup>
