@@ -504,10 +504,11 @@ function AttestLive({ schemaUID }: { schemaUID: string }) {
 
 /* ── page ─────────────────────────────────────────────────────────────── */
 
-const QUICKSTART = `import { createPublicClient, createWalletClient, http } from 'viem'
+const QUICKSTART = `import { createPublicClient, createWalletClient, http, encodeAbiParameters } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { SignetClient } from '@signetprotocol/evm-sdk'
 
+// needs: Node 18+, an account funded with testnet MON (faucet.monad.xyz), a Monad RPC
 const transport = http('https://rpc.ankr.com/monad_testnet')
 const account = privateKeyToAccount(process.env.PRIVATE_KEY as \`0x\${string}\`)
 
@@ -523,10 +524,16 @@ const { uid: schemaUID } = await signet.registerSchema({
   revocable: true,
 })
 
-// 2. attest
-const { uid } = await signet.attest({ schemaUID, subject: '0xSubject…', data: '0x01' })
+// 2. encode the claim to match the schema definition (same order + types)
+const data = encodeAbiParameters(
+  [{ type: 'bool' }, { type: 'string' }],
+  [true, 'premium'],
+)
 
-// 3. read it back
+// 3. attest — subject can be any address, even one that's never touched the chain
+const { uid } = await signet.attest({ schemaUID, subject: '0xSubject…', data })
+
+// 4. read it back — no walletClient or gas needed for reads
 await signet.isValid(uid)          // true
 await signet.getAttestation(uid)   // full record`
 
@@ -573,6 +580,7 @@ export default function SdkPage() {
           <a href={REPO} target="_blank" rel="noreferrer">Source & README ↗</a>
           <a href={`${REPO}/examples/monad-sdk.ts`} target="_blank" rel="noreferrer">Runnable example ↗</a>
           <a href={`${REPO}/test`} target="_blank" rel="noreferrer">Parity tests ↗</a>
+          <a href="https://github.com/robertocarlous/Signet/tree/main/apps/docs" target="_blank" rel="noreferrer">Protocol docs ↗</a>
           <a href="/api/monad/contracts" target="_blank" rel="noreferrer">Deployments JSON ↗</a>
         </div>
       </div>
@@ -586,6 +594,7 @@ export default function SdkPage() {
           <a href="#delegated">Delegated (gasless)</a>
           <a href="#personhood">Passkey personhood</a>
           <a href="#reads">Reads & verify</a>
+          <a href="#troubleshooting">Troubleshooting</a>
           <a href="#live">Live demo</a>
           <a href="#api">API reference</a>
         </nav>
@@ -594,15 +603,54 @@ export default function SdkPage() {
           <section id="quickstart" className="sdk-section">
             <h2>Quickstart</h2>
             <p>
-              One client, three calls. <code>chain: &apos;monadTestnet&apos;</code> loads the deployed
+              One client, four steps. <code>chain: &apos;monadTestnet&apos;</code> loads the deployed
               contract addresses for you; pass <code>addresses</code> explicitly for a custom deployment.
+            </p>
+            <p className="note">
+              Prerequisites: Node&nbsp;18+, an account funded with testnet MON from the{' '}
+              <a className="link" href="https://faucet.monad.xyz" target="_blank" rel="noreferrer">
+                Monad faucet
+              </a>
+              , and a Monad testnet RPC URL. Reads need none of these.
             </p>
             <Code>{QUICKSTART}</Code>
           </section>
 
           <section id="model" className="sdk-section">
             <h2>How it fits together</h2>
-            <p>Three immutable contracts, no admin keys. The SDK is a typed wrapper over them.</p>
+            <p>Four terms cover the whole SDK surface:</p>
+            <table className="api-table">
+              <tbody>
+                <tr>
+                  <td>Schema</td>
+                  <td>
+                    The shape of a claim, e.g. &ldquo;bool verified,string level&rdquo;. Anyone can register one; the
+                    registrant becomes its authority. Registering returns a deterministic schemaUID.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Attestation</td>
+                  <td>
+                    One instance of a claim — &ldquo;using schema X, I (the attester) claim this about subject.&rdquo;
+                    Returns a per-claim uid.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Subject</td>
+                  <td>The address a claim is about. It never has to sign anything or be online.</td>
+                </tr>
+                <tr>
+                  <td>Resolver</td>
+                  <td>
+                    An optional contract a schema points at to add rules — fees, allowlists, one-per-address. Most
+                    quickstart use needs none.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p style={{ marginTop: 18 }}>
+              Underneath: three immutable contracts, no admin keys. The SDK is a typed wrapper over them.
+            </p>
             <div className="fits">
               <div className="box">
                 <b>SchemaRegistry</b> — permissionless. Anyone registers a <em>schema</em> (a
@@ -646,6 +694,21 @@ signet.computeSchemaUid({ definition, authority, resolver?, revocable }) → Hex
               A signed claim about a <code>subject</code>, structured by a schema. <code>data</code> is
               ABI-encoded per the schema. The UID binds the registry and attester so it never collides.
             </p>
+            <p>Three ways to write one — pick by who pays gas and whether the attester is online:</p>
+            <div className="fits">
+              <div className="box">
+                <b>attest()</b> — the attester (<code>msg.sender</code>) pays gas and must be online. Simplest case:
+                you hold the live, funded wallet.
+              </div>
+              <div className="box">
+                <b>signDelegatedAttestation() + submitDelegatedAttestation()</b> — the attester signs offline once,
+                no gas; whoever relays it pays. Use when the attester shouldn&apos;t need gas or a connection.
+              </div>
+              <div className="box">
+                <b>attestPersonhood()</b> — a device passkey signs; whoever relays it pays. Use to prove a real
+                device/human holder, with no wallet or seed phrase.
+              </div>
+            </div>
             <code className="sig">{`signet.attest({ schemaUID, subject, data, expirationTime? }) → { uid, hash }
 signet.revoke(attestationUID) → { hash }              // attester only, schema must be revocable
 signet.getAttestation(uid) → Attestation
@@ -709,6 +772,49 @@ derSignatureToRS(der) → { r, s }                       // low-s`}</code>
 signet.getAttestation(uid) · signet.isValid(uid) · signet.isAttested(uid)
 signet.getNonce(attester) · signet.getRevocationNonce(revoker)
 signet.onchainDomainSeparator() · signet.personhoodOf(address)`}</code>
+          </section>
+
+          <section id="troubleshooting" className="sdk-section">
+            <h2>Troubleshooting</h2>
+            <table className="api-table">
+              <tbody>
+                <tr>
+                  <td>insufficient funds for gas</td>
+                  <td>
+                    The account behind your walletClient has no MON. Fund it from{' '}
+                    <a className="link" href="https://faucet.monad.xyz" target="_blank" rel="noreferrer">
+                      faucet.monad.xyz
+                    </a>
+                    .
+                  </td>
+                </tr>
+                <tr>
+                  <td>walletClient is required for writes</td>
+                  <td>
+                    You called a write (attest, registerSchema…) on a client built with only a publicClient. Add a
+                    walletClient.
+                  </td>
+                </tr>
+                <tr>
+                  <td>unknown chain &quot;…&quot;</td>
+                  <td>
+                    The chain option doesn&apos;t match a key in DEPLOYMENTS (currently just monadTestnet). Check for
+                    typos, or pass addresses directly for a custom deployment.
+                  </td>
+                </tr>
+                <tr>
+                  <td>revert with no clear reason</td>
+                  <td>
+                    If the schema has a resolver, its onAttest hook can reject — an unpaid fee, a failed allowlist
+                    check. Check the resolver contract&apos;s conditions.
+                  </td>
+                </tr>
+                <tr>
+                  <td>delegated attestation rejected as expired</td>
+                  <td>deadline defaults to &ldquo;never,&rdquo; but a custom one must be a future Unix timestamp.</td>
+                </tr>
+              </tbody>
+            </table>
           </section>
 
           <section id="live" className="sdk-section">
