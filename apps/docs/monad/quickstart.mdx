@@ -1,23 +1,43 @@
 ---
 title: 'Monad Quickstart'
-description: 'Register a schema and write direct + delegated attestations on Monad with @signetprotocol/evm-sdk'
+description: 'From an empty folder to a live attestation on Monad testnet, in one script'
 ---
 
-## Prerequisites
+This walks through one complete, runnable example: create a project, write one
+script, run it, and see a real transaction on Monad testnet. Everything after this
+page (frontend, backend, passkeys) builds on exactly what you set up here.
+
+## 0. Prerequisites
 
 - Node.js 18+
-- A Monad testnet wallet with MON ([faucet](https://faucet.monad.xyz))
+- A wallet with testnet MON — get some free from the [Monad faucet](https://faucet.monad.xyz)
 
-## Install
+## 1. Create a project
 
 ```bash
-npm install @signetprotocol/evm-sdk viem
+mkdir signet-quickstart && cd signet-quickstart
+npm init -y
+npm install @signetprotocol/evm-sdk viem dotenv
+npm install -D tsx typescript
 ```
 
-## Client
+## 2. Configure your key
 
-```ts
-import { createPublicClient, createWalletClient, http } from 'viem'
+```bash
+echo "PRIVATE_KEY=0xyour_testnet_private_key" > .env
+```
+
+<Warning>
+Use a **testnet-only** key with no real funds. Never commit `.env`.
+</Warning>
+
+## 3. Write the script
+
+Create `attest.ts`:
+
+```ts attest.ts
+import 'dotenv/config'
+import { createPublicClient, createWalletClient, http, encodeAbiParameters, decodeAbiParameters } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { SignetClient } from '@signetprotocol/evm-sdk'
 
@@ -25,69 +45,94 @@ const transport = http('https://rpc.ankr.com/monad_testnet')
 const account = privateKeyToAccount(process.env.PRIVATE_KEY as `0x${string}`)
 
 const signet = new SignetClient({
-  chain: 'monadTestnet', // bundles the deployed addresses
+  chain: 'monadTestnet',
   publicClient: createPublicClient({ transport }),
   walletClient: createWalletClient({ account, transport }),
 })
-```
 
-## Register a schema
+const FIELDS = [{ type: 'bool' }, { type: 'string' }] as const
 
-```ts
-const { uid: schemaUID } = await signet.registerSchema({
-  definition: 'bool verified,string level',
-  revocable: true,
-  // resolver: '0x…',  // optional policy contract
+async function main() {
+  console.log('signer:', account.address)
+
+  // 1. Register a schema (skip this step and reuse a UID once you have one —
+  //    registering the same definition/authority/resolver/revocable twice is a no-op)
+  const schema = await signet.registerSchema({
+    definition: 'bool verified,string level',
+    revocable: true,
+  })
+  console.log('schema UID:', schema.uid, '  tx:', schema.hash)
+
+  // 2. Attest — claim something about a subject (here, about yourself)
+  const data = encodeAbiParameters(FIELDS, [true, 'basic'])
+  const att = await signet.attest({ schemaUID: schema.uid, subject: account.address, data })
+  console.log('attestation UID:', att.uid, '  tx:', att.hash)
+
+  // 3. Read it back — anyone can do this, no wallet needed
+  const isValid = await signet.isValid(att.uid)
+  const record = await signet.getAttestation(att.uid)
+  const [verified, level] = decodeAbiParameters(FIELDS, record.data)
+  console.log('valid:', isValid, '  data:', { verified, level })
+}
+
+main().catch((err) => {
+  console.error(err)
+  process.exit(1)
 })
 ```
 
-`schemaUID` is deterministic — `signet.computeSchemaUid({ definition, authority, revocable })`
-gives you the same value without a transaction.
+## 4. Run it
 
-## Attest
-
-```ts
-import { encodeAbiParameters } from 'viem'
-
-const data = encodeAbiParameters(
-  [{ type: 'bool' }, { type: 'string' }],
-  [true, 'premium'],
-)
-
-const { uid } = await signet.attest({
-  schemaUID,
-  subject: '0xSubject…',
-  data,
-})
-
-await signet.isValid(uid)         // true
-await signet.getAttestation(uid)  // full record
+```bash
+npx tsx attest.ts
 ```
 
-## Delegated attestation (relayer pays gas)
+You should see something like:
 
-```ts
-// signer — offline, no gas
-const request = await signet.signDelegatedAttestation({
-  schemaUID,
-  subject: '0xSubject…',
-  data,
-})
-
-// relayer — anywhere, pays gas
-const { uid } = await signet.submitDelegatedAttestation(request)
+```txt
+signer: 0xA11cE00000000000000000000000000000000
+schema UID: 0x9f2c...e41a   tx: 0x1b3d...c02f
+attestation UID: 0x77aa...4b19   tx: 0x5e91...a3d0
+valid: true   data: { verified: true, level: 'basic' }
 ```
 
-The signer never touches the chain. `request` is a plain object you can POST to a
-relayer. Nonce and deadline are filled in for you (override via the options).
+Check the transaction on [MonadScan](https://testnet.monadscan.com) with either
+tx hash — that's a real, permanent, publicly-readable attestation. No backend, no
+database, no API key required to read it back.
 
-## Revoke
+## What just happened
 
-```ts
-await signet.revoke(uid) // msg.sender must be the attester; schema must be revocable
-```
+- **`registerSchema`** cost gas and created a permanent, reusable definition — you
+  became its `authority`.
+- **`attest`** cost gas and created one claim against that schema, about `subject`
+  (here, your own address — it can be anyone's).
+- **`isValid`** / **`getAttestation`** are free reads — any app, anywhere, can run
+  them against the same UID with no permission from you.
+
+## Next Steps
+
+You have a working script. From here, pick where you're integrating this:
+
+<CardGroup cols={2}>
+  <Card title="Backend / Server" icon="server" href="/monad/backend">
+    Hold the signing key server-side and expose an attest endpoint — the pattern
+    the live demo uses.
+  </Card>
+  <Card title="Frontend" icon="browser" href="/monad/frontend">
+    Call that endpoint from a web app, and read attestations client-side with no
+    key at all.
+  </Card>
+  <Card title="Passkey personhood" icon="fingerprint" href="/monad/passkey-personhood">
+    Verify a real device holder on chain — no wallet, no seed phrase.
+  </Card>
+  <Card title="Delegation" icon="signature" href="/concepts/delegates">
+    Sign off-chain, let someone else pay gas and submit.
+  </Card>
+</CardGroup>
 
 ## CLI
+
+For one-off calls without writing a script:
 
 ```bash
 npm install -g @signetprotocol/cli
@@ -95,7 +140,3 @@ npm install -g @signetprotocol/cli
 signet schema      --chain=monad --action=create --json-file=schema.json --key-file=key.txt
 signet attestation --chain=monad --action=create --json-file=att.json    --key-file=key.txt
 ```
-
-<Card title="Passkey personhood" icon="fingerprint" href="/monad/passkey-personhood">
-  Verify a real device holder on chain — no wallet, no seed phrase.
-</Card>

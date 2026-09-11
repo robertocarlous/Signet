@@ -1,0 +1,173 @@
+---
+title: 'Backend / Server Integration'
+description: 'Build a small relayer service that holds the signing key and exposes an attest endpoint'
+---
+
+The safest way to use Signet from an app with a frontend is to **never put a
+private key in the browser**. Instead, a server holds the key and exposes an
+endpoint the frontend calls. This is exactly the pattern the live
+[personhood demo](https://signet-personhood.vercel.app) uses in production
+(`apps/personhood/app/api/attest/route.ts` in the repo) — this guide builds a
+smaller, generic version of the same thing.
+
+This picks up where the [Quickstart](/monad/quickstart) left off — same
+dependencies, same `SignetClient`.
+
+## 1. Create a project
+
+```bash
+mkdir signet-relayer && cd signet-relayer
+npm init -y
+npm install @signetprotocol/evm-sdk viem express dotenv
+npm install -D tsx typescript @types/express
+```
+
+## 2. Configure the relayer key
+
+This is the wallet that pays gas for every request — fund it once from the
+[faucet](https://faucet.monad.xyz), then never expose it to a client.
+
+```bash
+echo "RELAYER_PRIVATE_KEY=0xyour_testnet_private_key" > .env
+```
+
+## 3. Set up the Signet client
+
+Create `signet.ts` — a small module the rest of the server imports from:
+
+```ts signet.ts
+import 'dotenv/config'
+import { createPublicClient, createWalletClient, http, type Hex } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
+import { SignetClient } from '@signetprotocol/evm-sdk'
+
+const transport = http('https://rpc.ankr.com/monad_testnet')
+export const publicClient = createPublicClient({ transport })
+
+/** Read-only — safe to use anywhere, no key required. */
+export function readClient() {
+  return new SignetClient({ chain: 'monadTestnet', publicClient })
+}
+
+/** Holds the relayer key. Import this only in server-side code. */
+export function relayerClient() {
+  const pk = process.env.RELAYER_PRIVATE_KEY as Hex | undefined
+  if (!pk) throw new Error('RELAYER_PRIVATE_KEY is not set')
+  const account = privateKeyToAccount(pk)
+  const walletClient = createWalletClient({ account, transport })
+  return new SignetClient({ chain: 'monadTestnet', publicClient, walletClient })
+}
+```
+
+## 4. Write the server
+
+Create `server.ts` — one endpoint that registers a fixed schema on first use, then
+attests on every request:
+
+```ts server.ts
+import 'dotenv/config'
+import express from 'express'
+import { encodeAbiParameters, isAddress, type Address, type Hex } from 'viem'
+import { readClient, relayerClient } from './signet'
+
+const app = express()
+app.use(express.json())
+
+const DEFINITION = 'bool verified,string level'
+const FIELDS = [{ type: 'bool' }, { type: 'string' }] as const
+
+let schemaUID: Hex | null = null
+
+async function ensureSchema(): Promise<Hex> {
+  if (schemaUID) return schemaUID
+  const signet = relayerClient()
+  const { uid } = await signet.registerSchema({ definition: DEFINITION, revocable: true })
+  schemaUID = uid
+  return uid
+}
+
+// POST /attest  { subject, verified, level }
+app.post('/attest', async (req, res) => {
+  const { subject, verified, level } = req.body as { subject?: Address; verified?: boolean; level?: string }
+
+  if (!subject || !isAddress(subject) || typeof verified !== 'boolean' || !level) {
+    return res.status(400).json({ error: 'expected { subject, verified, level }' })
+  }
+
+  try {
+    const uid = await ensureSchema()
+    const signet = relayerClient()
+    const data = encodeAbiParameters(FIELDS, [verified, level])
+    const { hash, uid: attestationUID } = await signet.attest({ schemaUID: uid, subject, data })
+    res.json({ txHash: hash, uid: attestationUID })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'attest failed', detail: (err as Error).message.slice(0, 300) })
+  }
+})
+
+// GET /status/:uid  — read-only, no key involved
+app.get('/status/:uid', async (req, res) => {
+  const signet = readClient()
+  const uid = req.params.uid as Hex
+  const isValid = await signet.isValid(uid)
+  res.json({ uid, valid: isValid })
+})
+
+app.listen(3001, () => console.log('relayer listening on http://localhost:3001'))
+```
+
+## 5. Run it
+
+```bash
+npx tsx server.ts
+```
+
+```txt
+relayer listening on http://localhost:3001
+```
+
+In another terminal:
+
+```bash
+curl -X POST http://localhost:3001/attest \
+  -H 'content-type: application/json' \
+  -d '{"subject":"0xYourAddress...","verified":true,"level":"basic"}'
+```
+
+```json
+{ "txHash": "0x5e91...a3d0", "uid": "0x77aa...4b19" }
+```
+
+```bash
+curl http://localhost:3001/status/0x77aa...4b19
+```
+
+```json
+{ "uid": "0x77aa...4b19", "valid": true }
+```
+
+## Why this shape
+
+- **The private key never leaves the server.** The frontend (or any client) only
+  ever sees `subject`/`verified`/`level` in, and a `uid` out.
+- **`readClient()` needs no key at all** — expose read endpoints freely, or skip
+  the backend for reads entirely and call the chain directly from the browser (see
+  [Frontend](/monad/frontend)).
+- **This scales to delegation.** Instead of the relayer being the attester, have
+  users sign a [delegated attestation](/concepts/delegates) client-side and POST
+  the signed request here — the relayer just calls
+  `submitDelegatedAttestation(request)` instead of `attest(...)`. Same server
+  shape, the relayer no longer needs to be trusted with *what* to attest, only to
+  submit it and pay gas.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Frontend" icon="browser" href="/monad/frontend">
+    Call this endpoint from a web app
+  </Card>
+  <Card title="Delegation" icon="signature" href="/concepts/delegates">
+    Let the caller sign instead of the relayer
+  </Card>
+</CardGroup>

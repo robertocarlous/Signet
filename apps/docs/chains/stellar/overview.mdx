@@ -515,14 +515,11 @@ Comprehensive test suites are available in each contract directory for validatio
 
 <CardGroup cols={2}>
   <Card
-    href="/chains/solana/overview"
+    title="Monad (EVM)"
+    icon="rocket"
+    href="/monad/overview"
   >
-    <div className="flex flex-col justify-center h-14 mb-3">
-      <img src="/images/solana-light.svg" className="w-32 h-auto block dark:hidden" alt="Solana" />
-      <img src="/images/solana-dark.svg" className="w-32 h-auto hidden dark:block" alt="Solana" />
-    </div>
-
-    Compare with the Anchor-based Solana implementation
+    Compare with the primary, actively-developed EVM port — passkey personhood, EIP-712 delegation
   </Card>
   <Card
     title="Contract Source"
@@ -530,5 +527,12 @@ Comprehensive test suites are available in each contract directory for validatio
     href="https://github.com/robertocarlous/Signet/tree/main/contracts/stellar"
   >
     View the complete Soroban contract source
+  </Card>
+  <Card
+    title="Solana (dev)"
+    icon="github"
+    href="https://github.com/robertocarlous/Signet/tree/main/contracts/solana"
+  >
+    Early-stage Anchor-based port — no docs yet, browse the source directly
   </Card>
 </CardGroup>

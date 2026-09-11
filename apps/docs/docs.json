@@ -45,6 +45,8 @@
             "pages": [
               "monad/overview",
               "monad/quickstart",
+              "monad/backend",
+              "monad/frontend",
               "monad/passkey-personhood",
               "monad/why-signet"
             ]

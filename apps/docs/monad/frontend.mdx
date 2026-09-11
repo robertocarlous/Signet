@@ -1,0 +1,161 @@
+---
+title: 'Frontend Integration'
+description: 'Read attestations directly from the browser, and write them through your backend'
+---
+
+Two different things happen in a frontend, and they use the SDK differently:
+
+| | Needs a key? | How |
+|---|---|---|
+| **Reading** an attestation | No | Call the chain directly from the browser with `SignetClient` |
+| **Writing** an attestation | Yes | POST to your own backend (see [Backend](/monad/backend)) — never hold the signing key in client code |
+
+This guide builds both into one Next.js page. It assumes the `/attest` and
+`/status/:uid` endpoints from the [Backend guide](/monad/backend) are running.
+
+## 1. Create a project
+
+```bash
+npx create-next-app@latest signet-frontend --typescript --app
+cd signet-frontend
+npm install @signetprotocol/evm-sdk viem
+```
+
+## 2. A read-only client
+
+Reads need no wallet, no key, and are safe to run straight in the browser. Create
+`lib/signet.ts`:
+
+```ts lib/signet.ts
+import { createPublicClient, http } from 'viem'
+import { SignetClient } from '@signetprotocol/evm-sdk'
+
+const publicClient = createPublicClient({
+  transport: http('https://rpc.ankr.com/monad_testnet'),
+})
+
+export function readClient() {
+  return new SignetClient({ chain: 'monadTestnet', publicClient })
+}
+```
+
+## 3. Build the page
+
+Create `app/page.tsx` — a form that POSTs to your backend to create an
+attestation, then reads it back directly from the chain:
+
+```tsx app/page.tsx
+'use client'
+
+import { useState } from 'react'
+import type { Address, Hex } from 'viem'
+import { readClient } from '../lib/signet'
+
+const RELAYER_URL = 'http://localhost:3001' // your backend from /monad/backend
+
+export default function Page() {
+  const [subject, setSubject] = useState('')
+  const [uid, setUid] = useState<Hex | null>(null)
+  const [valid, setValid] = useState<boolean | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleAttest() {
+    setBusy(true)
+    setError(null)
+    try {
+      // 1. Write — through the backend, which holds the key
+      const res = await fetch(`${RELAYER_URL}/attest`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ subject, verified: true, level: 'basic' }),
+      })
+      if (!res.ok) throw new Error((await res.json()).error ?? 'attest failed')
+      const { uid: newUid } = (await res.json()) as { uid: Hex }
+      setUid(newUid)
+
+      // 2. Read — directly from the chain, no backend involved
+      const signet = readClient()
+      setValid(await signet.isValid(newUid))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'something went wrong')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <main style={{ padding: 24, fontFamily: 'sans-serif', maxWidth: 480 }}>
+      <h1>Signet demo</h1>
+      <input
+        value={subject}
+        onChange={(e) => setSubject(e.target.value)}
+        placeholder="0xSubjectAddress..."
+        style={{ width: '100%', padding: 8, marginBottom: 8 }}
+      />
+      <button onClick={handleAttest} disabled={busy || !subject}>
+        {busy ? 'Attesting...' : 'Attest'}
+      </button>
+
+      {uid && (
+        <p>
+          UID: <code>{uid}</code> — valid: <strong>{String(valid)}</strong>
+        </p>
+      )}
+      {error && <p style={{ color: 'crimson' }}>{error}</p>}
+    </main>
+  )
+}
+```
+
+## 4. Run it
+
+```bash
+npm run dev
+```
+
+Open `http://localhost:3000`, paste any address into the field, and click
+**Attest**. It calls your relayer (step 3 of the backend guide), gets back a
+`uid`, then reads that attestation straight from Monad testnet — you'll see
+`valid: true` once the transaction confirms.
+
+## Alternative: the user signs their own transaction
+
+If your app already connects a wallet (MetaMask, etc.) and the *user* should be
+the attester — not a relayer — build a `walletClient` from the injected provider
+instead of calling your backend:
+
+```ts
+import { createWalletClient, custom } from 'viem'
+
+const [account] = await (window as any).ethereum.request({ method: 'eth_requestAccounts' })
+const walletClient = createWalletClient({
+  account,
+  transport: custom((window as any).ethereum),
+})
+
+const signet = new SignetClient({ chain: 'monadTestnet', publicClient, walletClient })
+await signet.attest({ schemaUID, subject, data }) // user's wallet pays gas, prompts to sign
+```
+
+Use this when the user should pay their own gas and sign directly. Use the
+backend-relayer pattern (above) when you want gasless UX, or when the attester
+shouldn't need a wallet at all — that's what [passkey
+personhood](/monad/passkey-personhood) is built on.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Backend" icon="server" href="/monad/backend">
+    Build the relayer this page calls
+  </Card>
+  <Card title="Passkey Personhood" icon="fingerprint" href="/monad/passkey-personhood">
+    A full no-wallet, passkey-signed flow — see it live
+  </Card>
+  <Card title="React Integration" icon="code" href="/examples/react-integration">
+    Reusable hooks (`useVerifyAttestation`, `useCreateAttestation`)
+  </Card>
+  <Card title="Live reference" icon="rocket" href="https://signet-personhood.vercel.app/sdk">
+    SDK playground — every call, runnable in the browser
+  </Card>
+</CardGroup>
