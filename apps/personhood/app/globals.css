@@ -280,10 +280,16 @@ ol.steps li {
 .toc a {
   color: var(--muted);
   text-decoration: none;
-  padding: 2px 0;
+  padding: 4px 0 4px 10px;
+  border-left: 2px solid transparent;
 }
 .toc a:hover {
   color: var(--fg);
+}
+.toc a.active {
+  color: var(--accent);
+  border-left-color: var(--accent);
+  font-weight: 600;
 }
 @media (max-width: 860px) {
   .layout {
@@ -293,6 +299,44 @@ ol.steps li {
   .toc {
     display: none;
   }
+}
+
+.pager {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 12px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+.pager-link {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 45%;
+  text-decoration: none;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  transition: border-color 0.15s;
+}
+.pager-link:hover {
+  border-color: var(--accent-2);
+}
+.pager-next {
+  margin-left: auto;
+  text-align: right;
+}
+.pager-dir {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.pager-label {
+  font-size: 14px;
+  color: var(--fg);
+  font-weight: 600;
 }
 
 .sdk-section {
