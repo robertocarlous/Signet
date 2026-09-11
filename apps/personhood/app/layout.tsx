@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import MainShell from './MainShell'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -25,7 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </a>
           </nav>
         </header>
-        <main>{children}</main>
+        <MainShell>{children}</MainShell>
         <footer>
           Signet — the attestation layer for an AI-native internet. Live on Monad testnet (chain 10143).
         </footer>
