@@ -49,6 +49,9 @@ export default function VerifyPage() {
 
   return (
     <>
+      <span className="eyebrow">
+        <span className="dot" /> Public read · no API key
+      </span>
       <h1>Verify personhood</h1>
       <p className="lede">
         Anyone can check whether an address holds a valid Signet personhood attestation — no API key, no
@@ -57,6 +60,10 @@ export default function VerifyPage() {
       </p>
 
       <div className="card">
+        <div className="card-head">
+          <span className="step">🔍</span>
+          <h2>Address lookup</h2>
+        </div>
         <div className="row">
           <input
             type="text"
@@ -74,6 +81,10 @@ export default function VerifyPage() {
 
       {result && (
         <div className="card">
+          <div className="card-head">
+            <span className="step">✓</span>
+            <h2>Result</h2>
+          </div>
           <span className={`badge ${result.verified ? 'ok' : 'no'}`}>
             {result.verified ? '✔ Personhood verified' : '✕ No valid personhood attestation'}
           </span>

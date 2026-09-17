@@ -139,12 +139,20 @@ export default function EnrolPage() {
 
   return (
     <>
+      <span className="eyebrow">
+        <span className="dot" /> Live on Monad testnet · chain 10143
+      </span>
       <h1>Prove personhood with a passkey</h1>
       <p className="lede">
         One tap on the hardware you already own — no seed phrase, no centralised issuer. Your passkey
         signature is verified <em>on chain</em> on Monad via the RIP-7212 P-256 precompile, and Signet
         writes you a portable proof-of-personhood attestation.
       </p>
+      <div className="stat-row">
+        <span className="stat-pill">⚡ Gasless — the relayer pays</span>
+        <span className="stat-pill">🔒 Verified on chain</span>
+        <span className="stat-pill">🔑 No seed phrase</span>
+      </div>
 
       {!supported && (
         <div className="card">
@@ -156,7 +164,10 @@ export default function EnrolPage() {
       )}
 
       <div className="card">
-        <h2>1 · Your Signet identity</h2>
+        <div className="card-head">
+          <span className="step">1</span>
+          <h2>Your Signet identity</h2>
+        </div>
         {phase === 'loading' ? (
           <p className="note">Loading…</p>
         ) : !passkey ? (
@@ -190,7 +201,10 @@ export default function EnrolPage() {
 
       {passkey && (
         <div className="card">
-          <h2>2 · Enrol</h2>
+          <div className="card-head">
+            <span className="step">2</span>
+            <h2>Enrol</h2>
+          </div>
           {verified ? (
             <>
               <span className="badge ok">✔ Personhood verified</span>
@@ -243,7 +257,10 @@ export default function EnrolPage() {
       )}
 
       <div className="card">
-        <h2>Contracts (Monad testnet)</h2>
+        <div className="card-head">
+          <span className="step">◈</span>
+          <h2>Contracts (Monad testnet)</h2>
+        </div>
         <dl className="kv">
           <dt>PasskeyAttester</dt>
           <dd>

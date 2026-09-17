@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import MainShell from './MainShell'
+import TopNav from './TopNav'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -15,20 +16,24 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <header className="topbar">
           <Link href="/" className="brand">
-            ◈ Signet
+            <span className="mark">◈</span> Signet
           </Link>
-          <nav>
-            <Link href="/">Enrol</Link>
-            <Link href="/verify">Verify</Link>
-            <Link href="/sdk">SDK</Link>
-            <a href="https://github.com/robertocarlous/Signet" target="_blank" rel="noreferrer">
-              GitHub
-            </a>
-          </nav>
+          <TopNav />
         </header>
         <MainShell>{children}</MainShell>
         <footer>
-          Signet — the attestation layer for an AI-native internet. Live on Monad testnet (chain 10143).
+          <div className="footer-inner">
+            <span>Signet — the attestation layer for an AI-native internet. Live on Monad testnet (chain 10143).</span>
+            <div className="footer-links">
+              <a href="https://github.com/robertocarlous/Signet" target="_blank" rel="noreferrer">
+                GitHub
+              </a>
+              <Link href="/sdk">SDK docs</Link>
+              <a href="https://testnet.monadscan.com" target="_blank" rel="noreferrer">
+                Explorer
+              </a>
+            </div>
+          </div>
         </footer>
       </body>
     </html>
