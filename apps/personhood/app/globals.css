@@ -48,10 +48,17 @@ body {
   backdrop-filter: blur(14px) saturate(140%);
   -webkit-backdrop-filter: blur(14px) saturate(140%);
 }
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
 .brand {
   display: inline-flex;
   align-items: center;
   gap: 9px;
+  flex: none;
   font-weight: 700;
   font-size: 15px;
   letter-spacing: 0.01em;
@@ -67,6 +74,20 @@ body {
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
   color: #06231a;
   font-size: 13px;
+}
+.tagline {
+  color: var(--muted);
+  font-size: 12.5px;
+  padding-left: 14px;
+  border-left: 1px solid var(--line);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 780px) {
+  .tagline {
+    display: none;
+  }
 }
 .topbar nav {
   display: flex;
@@ -106,33 +127,6 @@ main {
 }
 main.main-wide {
   max-width: 1120px;
-}
-footer {
-  border-top: 1px solid var(--line);
-  margin-top: 40px;
-  padding: 26px 26px 34px;
-}
-footer .footer-inner {
-  max-width: 1120px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 14px;
-  color: var(--muted);
-  font-size: 12.5px;
-}
-footer .footer-links {
-  display: flex;
-  gap: 18px;
-}
-footer .footer-links a {
-  color: var(--muted);
-  text-decoration: none;
-}
-footer .footer-links a:hover {
-  color: var(--fg);
 }
 
 h1 {

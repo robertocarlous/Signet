@@ -15,17 +15,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <header className="topbar">
-          <Link href="/" className="brand">
-            <span className="mark">◈</span> Signet
-          </Link>
+          <div className="topbar-left">
+            <Link href="/" className="brand">
+              <span className="mark">◈</span> Signet
+            </Link>
+            <span className="tagline">the attestation layer for an AI-native internet</span>
+          </div>
           <TopNav />
         </header>
         <MainShell>{children}</MainShell>
-        <footer>
-          <div className="footer-inner">
-            <span>Signet — the attestation layer for an AI-native internet.</span>
-          </div>
-        </footer>
       </body>
     </html>
   )
