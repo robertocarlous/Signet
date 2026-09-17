@@ -23,7 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <MainShell>{children}</MainShell>
         <footer>
           <div className="footer-inner">
-            <span>Signet — the attestation layer for an AI-native internet. Live on Monad testnet (chain 10143).</span>
+            <span>Signet — the attestation layer for an AI-native internet.</span>
             <div className="footer-links">
               <a href="https://github.com/robertocarlous/Signet" target="_blank" rel="noreferrer">
                 GitHub

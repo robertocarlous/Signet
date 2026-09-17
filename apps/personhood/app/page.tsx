@@ -139,9 +139,6 @@ export default function EnrolPage() {
 
   return (
     <>
-      <span className="eyebrow">
-        <span className="dot" /> Live on Monad testnet · chain 10143
-      </span>
       <h1>Prove personhood with a passkey</h1>
       <p className="lede">
         One tap on the hardware you already own — no seed phrase, no centralised issuer. Your passkey
