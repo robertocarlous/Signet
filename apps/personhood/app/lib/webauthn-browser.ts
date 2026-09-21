@@ -29,6 +29,14 @@ export interface StoredPasskey {
   x: string // hex
   y: string // hex
   createdAt: number
+  /**
+   * The Signet subject this passkey acts for. Usually `identityAddress(x, y)` — but
+   * after a `recoverPersonhood` swap the new key's derived address is *not* the
+   * subject (recovery deliberately keeps the original subject, new key). Recovery
+   * sets this explicitly; plain enrolment leaves it unset and callers fall back to
+   * `identityAddress(x, y)`.
+   */
+  subject?: string
 }
 
 const STORAGE_KEY = 'signet.personhood.passkey'

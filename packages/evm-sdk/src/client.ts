@@ -9,19 +9,21 @@ import {
 } from 'viem'
 import { attestationRegistryAbi, passkeyAttesterAbi, schemaRegistryAbi } from './abi'
 import { DEPLOYMENTS, ZERO_ADDRESS, type DeploymentKey } from './deployments'
-import { attestTypedData, computeDomainSeparator, hashAttest, hashRevoke, revokeTypedData } from './eip712'
+import { attestTypedData, computeDomainSeparator, hashAttest, hashRecover, hashRevoke, revokeTypedData } from './eip712'
 import { computeAttestationUid, computeSchemaUid } from './uid'
 import type {
   AttestArgs,
   Attestation,
   DelegatedAttestationRequest,
   DelegatedRevocationRequest,
+  RecoverPersonhoodArgs,
   Schema,
+  SetGuardiansArgs,
   SignetAddresses,
   SignetClientOptions,
   WebAuthnAuth,
 } from './types'
-import { buildPersonhoodChallenge, credentialId } from './webauthn'
+import { buildPersonhoodChallenge, buildRecoveryChallenge, buildSetGuardiansChallenge, credentialId } from './webauthn'
 
 const MAX_UINT64 = (1n << 64n) - 1n
 
@@ -81,9 +83,7 @@ export class SignetClient {
 
   /** Pure — the bytes a passkey must sign to enrol `subject`. */
   personhoodChallenge(subject: Address, x: bigint, y: bigint): Hex {
-    const attester = this.addresses.passkeyAttester
-    if (!attester) throw new Error('SignetClient: no passkeyAttester address for this chain')
-    return buildPersonhoodChallenge({ chainId: this.chainId, passkeyAttester: attester, subject, x, y })
+    return buildPersonhoodChallenge({ chainId: this.chainId, passkeyAttester: this.#passkeyAttester(), subject, x, y })
   }
 
   // -------------------------------------------------------------------- reads
@@ -168,9 +168,8 @@ export class SignetClient {
 
   /** The personhood attestation UID for `subject`, or the zero hash. */
   personhoodOf(subject: Address): Promise<Hex> {
-    if (!this.addresses.passkeyAttester) throw new Error('SignetClient: no passkeyAttester for this chain')
     return this.publicClient.readContract({
-      address: this.addresses.passkeyAttester,
+      address: this.#passkeyAttester(),
       abi: passkeyAttesterAbi,
       functionName: 'personhoodOf',
       args: [subject],
@@ -341,10 +340,8 @@ export class SignetClient {
    */
   async attestPersonhood(args: { subject: Address; x: bigint; y: bigint; auth: WebAuthnAuth }): Promise<WriteResult> {
     const { wallet, account, chain } = this.write()
-    const attester = this.addresses.passkeyAttester
-    if (!attester) throw new Error('SignetClient: no passkeyAttester address for this chain')
     const hash = await wallet.writeContract({
-      address: attester,
+      address: this.#passkeyAttester(),
       abi: passkeyAttesterAbi,
       functionName: 'attestPersonhood',
       args: [args.subject, args.x, args.y, args.auth],
@@ -362,7 +359,134 @@ export class SignetClient {
     return credentialId(x, y)
   }
 
+  // ------------------------------------------------------- guardians & recovery
+
+  /** `subject`'s current recovery guardians, or `[]` if none are configured. */
+  guardiansOf(subject: Address): Promise<Address[]> {
+    return this.publicClient.readContract({
+      address: this.#passkeyAttester(),
+      abi: passkeyAttesterAbi,
+      functionName: 'guardiansOf',
+      args: [subject],
+    }) as Promise<Address[]>
+  }
+
+  /** How many distinct guardian signatures {@link recoverPersonhood} requires for `subject`. */
+  async guardianThreshold(subject: Address): Promise<number> {
+    return Number(
+      await this.publicClient.readContract({
+        address: this.#passkeyAttester(),
+        abi: passkeyAttesterAbi,
+        functionName: 'guardianThreshold',
+        args: [subject],
+      })
+    )
+  }
+
+  /** `subject`'s next expected nonce for {@link setGuardians} — pass explicitly to {@link setGuardiansChallenge} if pre-building. */
+  async guardianNonce(subject: Address): Promise<bigint> {
+    return BigInt(
+      await this.publicClient.readContract({
+        address: this.#passkeyAttester(),
+        abi: passkeyAttesterAbi,
+        functionName: 'guardianNonce',
+        args: [subject],
+      })
+    )
+  }
+
+  /** `subject`'s next expected nonce for {@link recoverPersonhood} — pass explicitly to {@link recoveryDigest} / {@link recoveryChallenge} if pre-building. */
+  async recoveryNonce(subject: Address): Promise<bigint> {
+    return BigInt(
+      await this.publicClient.readContract({
+        address: this.#passkeyAttester(),
+        abi: passkeyAttesterAbi,
+        functionName: 'recoveryNonce',
+        args: [subject],
+      })
+    )
+  }
+
+  /** Pure — the bytes `subject`'s *current* passkey must sign to set/rotate its guardians. */
+  setGuardiansChallenge(subject: Address, guardians: Address[], threshold: number, nonce: bigint): Hex {
+    return buildSetGuardiansChallenge({
+      chainId: this.chainId,
+      passkeyAttester: this.#passkeyAttester(),
+      subject,
+      guardians,
+      threshold,
+      nonce,
+    })
+  }
+
+  /** Pure — the bytes the *new* passkey must sign during {@link recoverPersonhood}. */
+  recoveryChallenge(subject: Address, newX: bigint, newY: bigint, nonce: bigint): Hex {
+    return buildRecoveryChallenge({
+      chainId: this.chainId,
+      passkeyAttester: this.#passkeyAttester(),
+      subject,
+      newX,
+      newY,
+      nonce,
+    })
+  }
+
+  /** Pure — the EIP-712 digest a guardian signs to approve a recovery (parity with on-chain `recoveryDigest`). */
+  recoveryDigest(subject: Address, newX: bigint, newY: bigint, nonce: bigint, deadline: bigint): Hex {
+    return hashRecover(this.chainId, this.#passkeyAttester(), { subject, newX, newY, nonce, deadline })
+  }
+
+  /**
+   * Pick (or replace) `subject`'s recovery guardians — at least 2 addresses, with a
+   * `threshold` of them required later to approve {@link recoverPersonhood}. Requires
+   * the *current* passkey to sign {@link setGuardiansChallenge}, so only someone who
+   * still holds their device can decide who may vouch for them if it's ever lost.
+   */
+  async setGuardians(args: SetGuardiansArgs): Promise<{ hash: Hex }> {
+    const { wallet, account, chain } = this.write()
+    const hash = await wallet.writeContract({
+      address: this.#passkeyAttester(),
+      abi: passkeyAttesterAbi,
+      functionName: 'setGuardians',
+      args: [args.subject, args.guardians, args.threshold, args.auth],
+      account,
+      chain,
+    })
+    await this.publicClient.waitForTransactionReceipt({ hash })
+    return { hash }
+  }
+
+  /**
+   * Swap `subject` onto a new passkey `(newX, newY)` once `threshold` of its guardians
+   * have co-signed the recovery digest. Revokes the old personhood attestation and mints
+   * a fresh one for the same `subject` — same protocol identity, new device. The new
+   * device must also independently prove it holds the key via `newAuth`; guardians vouch
+   * for the person, they can't hand-pick a key on someone's behalf.
+   */
+  async recoverPersonhood(args: RecoverPersonhoodArgs): Promise<WriteResult> {
+    const { wallet, account, chain } = this.write()
+    const attester = this.#passkeyAttester()
+    const hash = await wallet.writeContract({
+      address: attester,
+      abi: passkeyAttesterAbi,
+      functionName: 'recoverPersonhood',
+      args: [args.subject, args.newX, args.newY, args.deadline, args.guardianSignatures, args.newAuth],
+      account,
+      chain,
+    })
+    const receipt = await this.publicClient.waitForTransactionReceipt({ hash })
+    const [ev] = parseEventLogs({ abi: passkeyAttesterAbi, logs: receipt.logs, eventName: 'PersonhoodRecovered' })
+    const uid = (ev?.args as { newAttestationUID?: Hex } | undefined)?.newAttestationUID
+    return { hash, uid: uid ?? '0x' }
+  }
+
   // --------------------------------------------------------------------- internal
+
+  #passkeyAttester(): Address {
+    const attester = this.addresses.passkeyAttester
+    if (!attester) throw new Error('SignetClient: no passkeyAttester address for this chain')
+    return attester
+  }
 
   async #uidFromAttestedLog(hash: Hex): Promise<Hex> {
     const receipt = await this.publicClient.waitForTransactionReceipt({ hash })

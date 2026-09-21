@@ -160,6 +160,52 @@ const auth = assertionFromCredential(assertion) // -> WebAuthnAuth
 const { uid } = await signet.attestPersonhood({ subject: '0xSubject...', x, y, auth })
 ```
 
+### Social recovery (guardians)
+
+A passkey lives on one device — lose it, and there's no seed phrase to fall back on. Opt into
+recovery by naming **at least 2 trusted guardians** while you still hold your passkey; later,
+if you lose the device, `threshold` of them can co-sign a swap onto a brand-new passkey.
+
+```ts
+// 1. set (or rotate) guardians — requires your CURRENT passkey to sign, so only
+//    someone who still holds their device can decide who gets to vouch for them.
+const nonce = await signet.guardianNonce('0xSubject...')
+const guardians = ['0xGuardian1...', '0xGuardian2...']
+const threshold = 2
+const challenge = signet.setGuardiansChallenge('0xSubject...', guardians, threshold, nonce)
+const auth = assertionFromCredential(await navigator.credentials.get({ publicKey: { challenge: hexToBytes(challenge), ... } }))
+await signet.setGuardians({ subject: '0xSubject...', guardians, threshold, auth })
+
+// 2. later — device lost. Each guardian EIP-712 signs the same recovery digest,
+//    off-chain (a wallet, a Safe, anything that can signTypedData).
+const recNonce = await signet.recoveryNonce('0xSubject...')
+const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600)
+const digest = signet.recoveryDigest('0xSubject...', newX, newY, recNonce, deadline)
+// each guardian: walletClient.signTypedData({ domain, types: RECOVER_TYPES, primaryType: 'Recover', message })
+//   — or just sign `digest` directly with any ECDSA signer.
+
+// 3. the NEW device also proves it holds the new passkey — guardians vouch for the
+//    person, they can't hand-pick a key on someone's behalf.
+const newChallenge = signet.recoveryChallenge('0xSubject...', newX, newY, recNonce)
+const newAuth = assertionFromCredential(await navigator.credentials.get({ publicKey: { challenge: hexToBytes(newChallenge), ... } }))
+
+// 4. anyone relays it once threshold signatures are collected — revokes the old
+//    attestation and mints a fresh one for the same subject.
+const { uid } = await signet.recoverPersonhood({
+  subject: '0xSubject...', newX, newY, deadline, guardianSignatures: [sig1, sig2], newAuth,
+})
+```
+
+```ts
+signet.setGuardians({ subject, guardians, threshold, auth }) → { hash }
+signet.recoverPersonhood({ subject, newX, newY, deadline, guardianSignatures, newAuth }) → { uid, hash }
+signet.guardiansOf(subject) → Address[]              // [] if none configured
+signet.guardianThreshold(subject) → number
+signet.setGuardiansChallenge(subject, guardians, threshold, nonce) → Hex   // pure
+signet.recoveryChallenge(subject, newX, newY, nonce) → Hex                // pure
+signet.recoveryDigest(subject, newX, newY, nonce, deadline) → Hex         // pure, EIP-712
+```
+
 ## Revoke
 
 ```ts
@@ -175,6 +221,8 @@ await signet.revoke(uid) // msg.sender must be the attester; the schema must be 
 | `SignetClient: unknown chain "..."` | The `chain` option doesn't match a key in `DEPLOYMENTS` (currently just `monadTestnet`). Check for typos, or pass `addresses` directly for a custom deployment. |
 | Transaction reverts with no clear reason | If the schema has a `resolver`, its `onAttest` hook can reject the attestation (e.g. a fee wasn't paid, an allowlist check failed). Check the resolver contract's conditions. |
 | Delegated attestation rejected as expired | `deadline` defaults to "never," but if you pass your own, make sure it's a future Unix timestamp. |
+| `NoGuardiansConfigured` on `recoverPersonhood` | The subject never called `setGuardians`. Recovery only works if guardians were set up in advance, while the passkey was still available. |
+| `InsufficientGuardianApprovals` | Fewer than `threshold` *distinct* signatures recovered to a configured guardian address. Check each guardian signed the exact digest from `recoveryDigest` (same `nonce`/`deadline`), and that signatures aren't being double-counted from the same guardian. |
 
 ## Pure helpers (no network)
 
@@ -188,6 +236,10 @@ locally, e.g. to check a UID before submitting a transaction.
 | `computeDomainSeparator` | `SignetAttestationRegistry.DOMAIN_SEPARATOR()` |
 | `hashAttest` / `hashRevoke` | `hashDelegatedAttestation` / `hashDelegatedRevocation` |
 | `buildPersonhoodChallenge` | `PasskeyAttester.challenge` |
+| `buildSetGuardiansChallenge` | `PasskeyAttester.setGuardiansChallenge` |
+| `buildRecoveryChallenge` | `PasskeyAttester.recoveryChallenge` |
+| `hashRecover` | `PasskeyAttester.recoveryDigest` |
+| `computePasskeyDomainSeparator` | `PasskeyAttester.DOMAIN_SEPARATOR()` |
 | `credentialId` | `keccak256(abi.encode(x, y))` |
 | `derSignatureToRS` | DER ECDSA → low-s `(r, s)` |
 | `toWebAuthnAuth` / `assertionFromCredential` | build the `WebAuthnAuth` tuple |

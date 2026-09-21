@@ -111,4 +111,279 @@ contract PasskeyAttesterTest is Test {
         assertEq(gotX, ax);
         assertEq(gotY, ay);
     }
+
+    // ------------------------------------------------------------------
+    // Guardians (social recovery, opt-in)
+    // ------------------------------------------------------------------
+
+    uint256 internal constant GUARDIAN1_PK = 0x6001;
+    uint256 internal constant GUARDIAN2_PK = 0x6002;
+    uint256 internal constant GUARDIAN3_PK = 0x6003;
+
+    function _guardianSet2() internal pure returns (address[] memory guardians) {
+        guardians = new address[](2);
+        guardians[0] = vm.addr(GUARDIAN1_PK);
+        guardians[1] = vm.addr(GUARDIAN2_PK);
+    }
+
+    function _setGuardians(address subject, uint256 pk, address[] memory guardians, uint8 threshold) internal {
+        bytes memory chal = attester.setGuardiansChallenge(subject, guardians, threshold, attester.guardianNonce(subject));
+        WebAuthnAuth memory auth = PasskeySigner.sign(pk, chal, false);
+        vm.prank(relayer);
+        attester.setGuardians(subject, guardians, threshold, auth);
+    }
+
+    function test_setGuardians_storesSetAndThreshold() public {
+        _enrol(alice, ALICE_PK, ax, ay);
+        address[] memory guardians = _guardianSet2();
+
+        vm.expectEmit(true, false, false, true);
+        emit PasskeyAttester.GuardiansSet(alice, guardians, 2);
+        _setGuardians(alice, ALICE_PK, guardians, 2);
+
+        assertEq(attester.guardiansOf(alice).length, 2);
+        assertEq(attester.guardiansOf(alice)[0], guardians[0]);
+        assertEq(attester.guardianThreshold(alice), 2);
+    }
+
+    function test_setGuardians_revertsIfNotEnrolled() public {
+        address[] memory guardians = _guardianSet2();
+        bytes memory chal = attester.setGuardiansChallenge(alice, guardians, 2, 0);
+        WebAuthnAuth memory auth = PasskeySigner.sign(ALICE_PK, chal, false);
+
+        vm.expectRevert(SignetErrors.NotEnrolled.selector);
+        attester.setGuardians(alice, guardians, 2, auth);
+    }
+
+    function test_setGuardians_revertsBelowMinimum() public {
+        _enrol(alice, ALICE_PK, ax, ay);
+        address[] memory guardians = new address[](1);
+        guardians[0] = vm.addr(GUARDIAN1_PK);
+
+        bytes memory chal = attester.setGuardiansChallenge(alice, guardians, 1, 0);
+        WebAuthnAuth memory auth = PasskeySigner.sign(ALICE_PK, chal, false);
+
+        vm.expectRevert(SignetErrors.TooFewGuardians.selector);
+        attester.setGuardians(alice, guardians, 1, auth);
+    }
+
+    function test_setGuardians_revertsOnBadThreshold() public {
+        _enrol(alice, ALICE_PK, ax, ay);
+        address[] memory guardians = _guardianSet2();
+
+        bytes memory chal = attester.setGuardiansChallenge(alice, guardians, 3, 0);
+        WebAuthnAuth memory auth = PasskeySigner.sign(ALICE_PK, chal, false);
+
+        vm.expectRevert(SignetErrors.InvalidThreshold.selector);
+        attester.setGuardians(alice, guardians, 3, auth);
+    }
+
+    function test_setGuardians_revertsOnDuplicateGuardian() public {
+        _enrol(alice, ALICE_PK, ax, ay);
+        address[] memory guardians = new address[](2);
+        guardians[0] = vm.addr(GUARDIAN1_PK);
+        guardians[1] = vm.addr(GUARDIAN1_PK);
+
+        bytes memory chal = attester.setGuardiansChallenge(alice, guardians, 2, 0);
+        WebAuthnAuth memory auth = PasskeySigner.sign(ALICE_PK, chal, false);
+
+        vm.expectRevert(SignetErrors.DuplicateGuardian.selector);
+        attester.setGuardians(alice, guardians, 2, auth);
+    }
+
+    function test_setGuardians_revertsOnWrongPasskeySignature() public {
+        _enrol(alice, ALICE_PK, ax, ay);
+        address[] memory guardians = _guardianSet2();
+
+        // Signed by bob's passkey, not alice's — must fail.
+        bytes memory chal = attester.setGuardiansChallenge(alice, guardians, 2, 0);
+        WebAuthnAuth memory auth = PasskeySigner.sign(0xB0B, chal, false);
+
+        vm.expectRevert(SignetErrors.BadPasskeySignature.selector);
+        attester.setGuardians(alice, guardians, 2, auth);
+    }
+
+    // ------------------------------------------------------------------
+    // Recovery — swap in a new passkey once enough guardians co-sign
+    // ------------------------------------------------------------------
+
+    uint256 internal constant NEW_ALICE_PK = 0xA11CE2;
+
+    function _guardianSig(uint256 guardianPk, bytes32 digest) internal pure returns (bytes memory) {
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(guardianPk, digest);
+        return abi.encodePacked(r, s, v);
+    }
+
+    function test_recoverPersonhood_swapsPasskeyWithThresholdApprovals() public {
+        bytes32 oldUid = _enrol(alice, ALICE_PK, ax, ay);
+        _setGuardians(alice, ALICE_PK, _guardianSet2(), 2);
+
+        (uint256 nx, uint256 ny) = PasskeySigner.publicKey(NEW_ALICE_PK);
+        uint64 deadline = uint64(block.timestamp + 1 hours);
+        uint256 nonce = attester.recoveryNonce(alice);
+        bytes32 digest = attester.recoveryDigest(alice, nx, ny, nonce, deadline);
+
+        bytes[] memory sigs = new bytes[](2);
+        sigs[0] = _guardianSig(GUARDIAN1_PK, digest);
+        sigs[1] = _guardianSig(GUARDIAN2_PK, digest);
+
+        WebAuthnAuth memory newAuth =
+            PasskeySigner.sign(NEW_ALICE_PK, attester.recoveryChallenge(alice, nx, ny, nonce), false);
+
+        vm.prank(relayer);
+        bytes32 newUid = attester.recoverPersonhood(alice, nx, ny, deadline, sigs, newAuth);
+
+        assertTrue(newUid != oldUid);
+        assertEq(attester.personhoodOf(alice), newUid);
+        assertFalse(attestations.isValid(oldUid), "old attestation must be revoked");
+        assertTrue(attestations.isValid(newUid), "new attestation must be valid");
+        assertFalse(attester.passkeyEnrolled(keccak256(abi.encode(ax, ay))), "old credential freed");
+        assertTrue(attester.passkeyEnrolled(keccak256(abi.encode(nx, ny))), "new credential enrolled");
+        assertEq(attester.recoveryNonce(alice), nonce + 1);
+    }
+
+    function test_recoverPersonhood_worksWithThreeGuardiansTwoOfThree() public {
+        _enrol(alice, ALICE_PK, ax, ay);
+
+        address[] memory guardians = new address[](3);
+        guardians[0] = vm.addr(GUARDIAN1_PK);
+        guardians[1] = vm.addr(GUARDIAN2_PK);
+        guardians[2] = vm.addr(GUARDIAN3_PK);
+        _setGuardians(alice, ALICE_PK, guardians, 2);
+
+        (uint256 nx, uint256 ny) = PasskeySigner.publicKey(NEW_ALICE_PK);
+        uint64 deadline = uint64(block.timestamp + 1 hours);
+        uint256 nonce = attester.recoveryNonce(alice);
+        bytes32 digest = attester.recoveryDigest(alice, nx, ny, nonce, deadline);
+
+        // Only 2 of the 3 guardians sign — should still succeed (threshold == 2).
+        bytes[] memory sigs = new bytes[](2);
+        sigs[0] = _guardianSig(GUARDIAN1_PK, digest);
+        sigs[1] = _guardianSig(GUARDIAN3_PK, digest);
+
+        WebAuthnAuth memory newAuth =
+            PasskeySigner.sign(NEW_ALICE_PK, attester.recoveryChallenge(alice, nx, ny, nonce), false);
+
+        vm.prank(relayer);
+        attester.recoverPersonhood(alice, nx, ny, deadline, sigs, newAuth);
+
+        assertTrue(attester.passkeyEnrolled(keccak256(abi.encode(nx, ny))));
+    }
+
+    function test_recoverPersonhood_revertsWithoutGuardiansConfigured() public {
+        _enrol(alice, ALICE_PK, ax, ay);
+        (uint256 nx, uint256 ny) = PasskeySigner.publicKey(NEW_ALICE_PK);
+        uint64 deadline = uint64(block.timestamp + 1 hours);
+
+        bytes[] memory sigs = new bytes[](0);
+        WebAuthnAuth memory newAuth =
+            PasskeySigner.sign(NEW_ALICE_PK, attester.recoveryChallenge(alice, nx, ny, 0), false);
+
+        vm.expectRevert(SignetErrors.NoGuardiansConfigured.selector);
+        attester.recoverPersonhood(alice, nx, ny, deadline, sigs, newAuth);
+    }
+
+    function test_recoverPersonhood_revertsBelowThreshold() public {
+        _enrol(alice, ALICE_PK, ax, ay);
+        _setGuardians(alice, ALICE_PK, _guardianSet2(), 2);
+
+        (uint256 nx, uint256 ny) = PasskeySigner.publicKey(NEW_ALICE_PK);
+        uint64 deadline = uint64(block.timestamp + 1 hours);
+        uint256 nonce = attester.recoveryNonce(alice);
+        bytes32 digest = attester.recoveryDigest(alice, nx, ny, nonce, deadline);
+
+        // Only 1 of 2 required guardians signs.
+        bytes[] memory sigs = new bytes[](1);
+        sigs[0] = _guardianSig(GUARDIAN1_PK, digest);
+
+        WebAuthnAuth memory newAuth =
+            PasskeySigner.sign(NEW_ALICE_PK, attester.recoveryChallenge(alice, nx, ny, nonce), false);
+
+        vm.expectRevert(SignetErrors.InsufficientGuardianApprovals.selector);
+        attester.recoverPersonhood(alice, nx, ny, deadline, sigs, newAuth);
+    }
+
+    function test_recoverPersonhood_rejectsNonGuardianAndDuplicateSignatures() public {
+        _enrol(alice, ALICE_PK, ax, ay);
+        _setGuardians(alice, ALICE_PK, _guardianSet2(), 2);
+
+        (uint256 nx, uint256 ny) = PasskeySigner.publicKey(NEW_ALICE_PK);
+        uint64 deadline = uint64(block.timestamp + 1 hours);
+        uint256 nonce = attester.recoveryNonce(alice);
+        bytes32 digest = attester.recoveryDigest(alice, nx, ny, nonce, deadline);
+
+        // One real guardian signature, repeated, plus one signature from a random outsider —
+        // neither counts toward the threshold of 2.
+        bytes[] memory sigs = new bytes[](3);
+        sigs[0] = _guardianSig(GUARDIAN1_PK, digest);
+        sigs[1] = _guardianSig(GUARDIAN1_PK, digest); // duplicate signer
+        sigs[2] = _guardianSig(0xDEAD, digest); // not a guardian
+
+        WebAuthnAuth memory newAuth =
+            PasskeySigner.sign(NEW_ALICE_PK, attester.recoveryChallenge(alice, nx, ny, nonce), false);
+
+        vm.expectRevert(SignetErrors.InsufficientGuardianApprovals.selector);
+        attester.recoverPersonhood(alice, nx, ny, deadline, sigs, newAuth);
+    }
+
+    function test_recoverPersonhood_revertsIfSubjectNeverEnrolled() public {
+        (uint256 nx, uint256 ny) = PasskeySigner.publicKey(NEW_ALICE_PK);
+        uint64 deadline = uint64(block.timestamp + 1 hours);
+        bytes[] memory sigs = new bytes[](0);
+        WebAuthnAuth memory newAuth =
+            PasskeySigner.sign(NEW_ALICE_PK, attester.recoveryChallenge(alice, nx, ny, 0), false);
+
+        vm.expectRevert(SignetErrors.NotEnrolled.selector);
+        attester.recoverPersonhood(alice, nx, ny, deadline, sigs, newAuth);
+    }
+
+    function test_recoverPersonhood_revertsOnExpiredDeadline() public {
+        _enrol(alice, ALICE_PK, ax, ay);
+        _setGuardians(alice, ALICE_PK, _guardianSet2(), 2);
+
+        (uint256 nx, uint256 ny) = PasskeySigner.publicKey(NEW_ALICE_PK);
+        uint64 deadline = uint64(block.timestamp);
+        vm.warp(block.timestamp + 1);
+        uint256 nonce = attester.recoveryNonce(alice);
+        bytes32 digest = attester.recoveryDigest(alice, nx, ny, nonce, deadline);
+
+        bytes[] memory sigs = new bytes[](2);
+        sigs[0] = _guardianSig(GUARDIAN1_PK, digest);
+        sigs[1] = _guardianSig(GUARDIAN2_PK, digest);
+
+        WebAuthnAuth memory newAuth =
+            PasskeySigner.sign(NEW_ALICE_PK, attester.recoveryChallenge(alice, nx, ny, nonce), false);
+
+        vm.expectRevert(SignetErrors.ExpiredSignature.selector);
+        attester.recoverPersonhood(alice, nx, ny, deadline, sigs, newAuth);
+    }
+
+    function test_recoverPersonhood_signaturesCannotBeReplayedAfterNonceBumps() public {
+        _enrol(alice, ALICE_PK, ax, ay);
+        _setGuardians(alice, ALICE_PK, _guardianSet2(), 2);
+
+        (uint256 nx, uint256 ny) = PasskeySigner.publicKey(NEW_ALICE_PK);
+        uint64 deadline = uint64(block.timestamp + 1 hours);
+        uint256 nonce = attester.recoveryNonce(alice);
+        bytes32 digest = attester.recoveryDigest(alice, nx, ny, nonce, deadline);
+
+        bytes[] memory sigs = new bytes[](2);
+        sigs[0] = _guardianSig(GUARDIAN1_PK, digest);
+        sigs[1] = _guardianSig(GUARDIAN2_PK, digest);
+
+        WebAuthnAuth memory newAuth =
+            PasskeySigner.sign(NEW_ALICE_PK, attester.recoveryChallenge(alice, nx, ny, nonce), false);
+
+        vm.prank(relayer);
+        attester.recoverPersonhood(alice, nx, ny, deadline, sigs, newAuth);
+
+        // Guardians re-approve moving to yet another passkey using the *same* old signatures/nonce —
+        // must fail because recoveryNonce already advanced (digest no longer matches).
+        (uint256 mx, uint256 my) = PasskeySigner.publicKey(0xA11CE3);
+        WebAuthnAuth memory replayAuth =
+            PasskeySigner.sign(0xA11CE3, attester.recoveryChallenge(alice, mx, my, nonce), false);
+
+        vm.expectRevert(SignetErrors.InsufficientGuardianApprovals.selector);
+        attester.recoverPersonhood(alice, mx, my, deadline, sigs, replayAuth);
+    }
 }

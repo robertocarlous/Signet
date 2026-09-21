@@ -26,12 +26,13 @@ through the RIP-7212 P-256 precompile.
 - **Gasless** — attesters sign an EIP-712 message offline; anyone relays it and pays.
 - **Not capturable** — the registries are immutable and admin-less; all policy lives in pluggable resolver contracts.
 - **Passkey personhood** — one tap on existing hardware, no seed phrase, no centralised issuer.
+- **Recoverable** — name guardians while your passkey is live; enough of them can later approve swapping in a new one if the device is lost. No admin override, ever.
 
 ## Live on Monad testnet (chain `10143`)
 
 | | |
 |---|---|
-| **Demo** | **[signet-personhood.vercel.app](https://signet-personhood.vercel.app)** — Enrol a passkey · Verify any address · [SDK playground](https://signet-personhood.vercel.app/sdk) |
+| **Demo** | **[signet-personhood.vercel.app](https://signet-personhood.vercel.app)** — Enrol a passkey · Verify any address · [Recover](https://signet-personhood.vercel.app/recover) a lost one · [SDK playground](https://signet-personhood.vercel.app/sdk) |
 | **SDK** | `npm install @signetprotocol/evm-sdk viem` |
 | **Docs** | [signet-docs.vercel.app](https://signet-docs.vercel.app) → *Monad* section |
 | **Read gateway** | `GET /api/monad/*` on the horizon indexer |
@@ -42,8 +43,8 @@ through the RIP-7212 P-256 precompile.
 |---|---|
 | `SignetSchemaRegistry` | [`0x2eb183fFd7D40866DEA68f2173C4C5a604D22602`](https://testnet.monadscan.com/address/0x2eb183fFd7D40866DEA68f2173C4C5a604D22602) |
 | `SignetAttestationRegistry` | [`0x4A48BE178900874FF1E5c2cF91E0B56f67d5359C`](https://testnet.monadscan.com/address/0x4A48BE178900874FF1E5c2cF91E0B56f67d5359C) |
-| `PasskeyAttester` | [`0x5A99835d5E7434BBf3e44Cc6A3E76b762045c48d`](https://testnet.monadscan.com/address/0x5A99835d5E7434BBf3e44Cc6A3E76b762045c48d) |
-| `PersonhoodResolver` | [`0xcf5b29668EB4Ea1dC51BA596c41bb2E722425100`](https://testnet.monadscan.com/address/0xcf5b29668EB4Ea1dC51BA596c41bb2E722425100) |
+| `PasskeyAttester` | [`0xfFBCd844DA4F5CaBBa36f60e4f17cEfe00029c8A`](https://testnet.monadscan.com/address/0xfFBCd844DA4F5CaBBa36f60e4f17cEfe00029c8A) |
+| `PersonhoodResolver` | [`0x9eF15a8383a3564b62FbA13759B3C5c5C6c8FBBD`](https://testnet.monadscan.com/address/0x9eF15a8383a3564b62FbA13759B3C5c5C6c8FBBD) |
 
 Canonical machine-readable copy: [`contracts/evm/deployments.json`](contracts/evm/deployments.json).
 
@@ -137,7 +138,7 @@ signet attestation --chain=monad --action=create --json-file=att.json    --key-f
 
 ```bash
 cd contracts/evm
-forge test                                              # 35 tests
+forge test                                              # 49 tests
 forge script script/Deploy.s.sol:Deploy --rpc-url monad_testnet --private-key 0x… --broadcast
 ```
 

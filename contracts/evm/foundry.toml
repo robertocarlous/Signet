@@ -7,6 +7,11 @@ script = "script"
 solc = "0.8.28"
 optimizer = true
 optimizer_runs = 200
+# PasskeyAttester.recoverPersonhood mixes WebAuthn structs, guardian signature
+# arrays, and several registry calls in one function — legacy codegen hits
+# "stack too deep" on it. via-ir is the standard fix for P-256/WebAuthn
+# contracts in this shape (base-org/webauthn-sol needs the same).
+via_ir = true
 evm_version = "cancun"
 bytecode_hash = "none"
 gas_reports = ["SignetSchemaRegistry", "SignetAttestationRegistry"]

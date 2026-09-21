@@ -114,3 +114,75 @@ export function hashAttest(chainId: number, verifyingContract: Address, request:
 export function hashRevoke(chainId: number, verifyingContract: Address, request: UnsignedRevoke): Hex {
   return hashTypedData(revokeTypedData(chainId, verifyingContract, request))
 }
+
+// ----------------------------------------------------------------------
+// PasskeyAttester's own EIP-712 domain — used only for guardian recovery
+// approvals. Distinct from the `Signet` domain above: `verifyingContract`
+// here is the PasskeyAttester address, not the AttestationRegistry.
+// ----------------------------------------------------------------------
+
+/** Matches `EIP712("SignetPasskeyAttester", "1")` in `PasskeyAttester`. */
+export const PASSKEY_EIP712_NAME = 'SignetPasskeyAttester'
+export const PASSKEY_EIP712_VERSION = '1'
+
+export const RECOVER_TYPES = {
+  Recover: [
+    { name: 'subject', type: 'address' },
+    { name: 'newX', type: 'uint256' },
+    { name: 'newY', type: 'uint256' },
+    { name: 'nonce', type: 'uint256' },
+    { name: 'deadline', type: 'uint64' },
+  ],
+} as const
+
+/** keccak256 of the ABI type string — must match `PasskeyAttester.RECOVER_TYPEHASH`. */
+export const RECOVER_TYPEHASH = keccak256(
+  stringToHex('Recover(address subject,uint256 newX,uint256 newY,uint256 nonce,uint64 deadline)')
+)
+
+export function passkeyAttesterDomain(chainId: number, verifyingContract: Address): TypedDataDomain {
+  return { name: PASSKEY_EIP712_NAME, version: PASSKEY_EIP712_VERSION, chainId, verifyingContract }
+}
+
+/**
+ * Compute the EIP-712 domain separator the same way `PasskeyAttester.DOMAIN_SEPARATOR()`
+ * returns it — useful for verifying a deployment.
+ */
+export function computePasskeyDomainSeparator(chainId: number, verifyingContract: Address): Hex {
+  return keccak256(
+    encodeAbiParameters(
+      [{ type: 'bytes32' }, { type: 'bytes32' }, { type: 'bytes32' }, { type: 'uint256' }, { type: 'address' }],
+      [
+        DOMAIN_TYPEHASH,
+        keccak256(stringToHex(PASSKEY_EIP712_NAME)),
+        keccak256(stringToHex(PASSKEY_EIP712_VERSION)),
+        BigInt(chainId),
+        verifyingContract,
+      ]
+    )
+  )
+}
+
+export interface RecoverMessage {
+  subject: Address
+  /** The *new* device's P-256 public key. */
+  newX: bigint
+  newY: bigint
+  nonce: bigint
+  deadline: bigint
+}
+
+/** `signTypedData` params for a guardian's recovery approval. */
+export function recoverTypedData(chainId: number, verifyingContract: Address, message: RecoverMessage) {
+  return {
+    domain: passkeyAttesterDomain(chainId, verifyingContract),
+    types: RECOVER_TYPES,
+    primaryType: 'Recover' as const,
+    message,
+  }
+}
+
+/** The digest a guardian signs — mirrors `PasskeyAttester.recoveryDigest`. */
+export function hashRecover(chainId: number, verifyingContract: Address, message: RecoverMessage): Hex {
+  return hashTypedData(recoverTypedData(chainId, verifyingContract, message))
+}

@@ -21,15 +21,29 @@
         "note": "EIP-712 delegation added; rebound to the same SchemaRegistry."
       },
       "PersonhoodResolver": {
-        "address": "0xcf5b29668EB4Ea1dC51BA596c41bb2E722425100",
+        "address": "0x9eF15a8383a3564b62FbA13759B3C5c5C6c8FBBD",
+        "deployBlock": 64460188,
+        "txHash": "0x89fe287d39713719c70c6b2cb47b82146504a2c06b63b26787dfb400fd817035",
+        "supersedes": "0xcf5b29668EB4Ea1dC51BA596c41bb2E722425100",
         "note": "Locks the personhood schema to PasskeyAttester as the only allowed attester."
       },
       "PasskeyAttester": {
-        "address": "0x5A99835d5E7434BBf3e44Cc6A3E76b762045c48d",
-        "personhoodSchemaUID": "0x6e29449805b2f822cdbaea9ca4bbc8758addb90d9ac2206e6d6156a51cac74e4",
+        "address": "0xfFBCd844DA4F5CaBBa36f60e4f17cEfe00029c8A",
+        "personhoodSchemaUID": "0x6171b49bd97f67cab946cc7fe562c49faeb093fdd30ad438f7358b85849a26b6",
         "requireUserVerification": false,
-        "note": "WebAuthn/P-256 -> proof-of-personhood attestation. One enrolment per passkey, one attestation per subject."
+        "deployBlock": 64460194,
+        "txHash": "0xfac0fa50eb0d8831cd55747d9e720bcebf6692d94ca252977b554a5b3d46b586",
+        "deployedAt": "2026-09-21T14:26:00Z",
+        "supersedes": "0x5A99835d5E7434BBf3e44Cc6A3E76b762045c48d",
+        "note": "WebAuthn/P-256 -> proof-of-personhood attestation, plus opt-in social recovery: setGuardians(subject, guardians[], threshold, auth) while the passkey is live, recoverPersonhood(...) once `threshold` guardians co-sign and the new device proves it holds the new key. One enrolment per passkey, one attestation per subject. Not an upgrade of the superseded attester — a parallel deployment; attestations under the old one remain valid, they just predate guardian support."
       }
+    },
+    "supersededPasskeyPersonhood": {
+      "note": "The original M2 attester/resolver/schema below still work on-chain exactly as before — this isn't an upgrade, `PasskeyAttester` has no admin/upgrade path by design. New enrolments should use the current PasskeyAttester above to get social recovery; anyone already enrolled under this one stays valid but would need to re-enrol against the new attester to gain guardians.",
+      "personhoodResolver": "0xcf5b29668EB4Ea1dC51BA596c41bb2E722425100",
+      "passkeyAttester": "0x5A99835d5E7434BBf3e44Cc6A3E76b762045c48d",
+      "personhoodSchemaUID": "0x6e29449805b2f822cdbaea9ca4bbc8758addb90d9ac2206e6d6156a51cac74e4",
+      "smokeAttestationUID": "0xc659ddadead2cfe70ff0f56e4635c5a841f8afe39d4e606af11c42bcbd9e827a"
     },
     "deployedAt": "2026-09-09T12:41:56Z",
     "smokeTest": {
@@ -42,10 +56,11 @@
       "delegatedAttestTx": "0xee633951031ea8ef7aa74972ef0c377dab88f0cc2e243f112d82a231d75e972d"
     },
     "passkeyPersonhood": {
-      "schemaUID": "0x6e29449805b2f822cdbaea9ca4bbc8758addb90d9ac2206e6d6156a51cac74e4",
+      "schemaUID": "0x6171b49bd97f67cab946cc7fe562c49faeb093fdd30ad438f7358b85849a26b6",
       "rip7212PrecompilePresent": true,
-      "smokeAttestationUID": "0xc659ddadead2cfe70ff0f56e4635c5a841f8afe39d4e606af11c42bcbd9e827a",
-      "note": "Live: a synthetic passkey assertion was verified on-chain (native RIP-7212) and produced a personhood attestation with attester = PasskeyAttester."
+      "smokeAttestationUID": "0xcb9642f3e1dc95d91154123b03d21c9c0046ee1eb5cb02de4b910457844005f6",
+      "smokeAttestTx": "0x47f1e5b6e82a4c3b917b7b2dbf398ea4e180ffd7d271f39c49f6ce12e588bd5c",
+      "note": "Live: a synthetic passkey assertion was verified on-chain (native RIP-7212) and produced a personhood attestation with attester = PasskeyAttester (the social-recovery-capable one). Guardians/recovery themselves are exercised by contracts/evm/test/PasskeyAttester.t.sol, not by this one-shot script."
     }
   }
 }

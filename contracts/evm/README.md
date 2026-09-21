@@ -5,9 +5,10 @@ model, UID derivation, error set, and events mirror the Soroban implementation i
 [`contracts/stellar/protocol`](../stellar/protocol) so the SDK, indexer, and docs
 stay chain-agnostic.
 
-> **Status: M2 complete.** Schema registry, direct + EIP-712 delegated
-> attest/revoke, resolver dispatch, views, **and a WebAuthn/P-256 passkey
-> proof-of-personhood layer** — implemented, tested (35 forge tests), and live
+> **Status: M3 complete.** Schema registry, direct + EIP-712 delegated
+> attest/revoke, resolver dispatch, views, a WebAuthn/P-256 passkey
+> proof-of-personhood layer, **and opt-in social recovery for a lost or
+> compromised passkey** — implemented, tested (49 forge tests), and live
 > on Monad testnet.
 
 ## Live — Monad testnet (chain 10143)
@@ -16,11 +17,13 @@ stay chain-agnostic.
 |---|---|
 | `SignetSchemaRegistry` | [`0x2eb183fFd7D40866DEA68f2173C4C5a604D22602`](https://testnet.monadscan.com/address/0x2eb183fFd7D40866DEA68f2173C4C5a604D22602) |
 | `SignetAttestationRegistry` | [`0x4A48BE178900874FF1E5c2cF91E0B56f67d5359C`](https://testnet.monadscan.com/address/0x4A48BE178900874FF1E5c2cF91E0B56f67d5359C) |
-| `PasskeyAttester` | [`0x5A99835d5E7434BBf3e44Cc6A3E76b762045c48d`](https://testnet.monadscan.com/address/0x5A99835d5E7434BBf3e44Cc6A3E76b762045c48d) |
-| `PersonhoodResolver` | [`0xcf5b29668EB4Ea1dC51BA596c41bb2E722425100`](https://testnet.monadscan.com/address/0xcf5b29668EB4Ea1dC51BA596c41bb2E722425100) |
+| `PasskeyAttester` | [`0xfFBCd844DA4F5CaBBa36f60e4f17cEfe00029c8A`](https://testnet.monadscan.com/address/0xfFBCd844DA4F5CaBBa36f60e4f17cEfe00029c8A) |
+| `PersonhoodResolver` | [`0x9eF15a8383a3564b62FbA13759B3C5c5C6c8FBBD`](https://testnet.monadscan.com/address/0x9eF15a8383a3564b62FbA13759B3C5c5C6c8FBBD) |
 
-Personhood schema UID: `0x6e29449805b2f822cdbaea9ca4bbc8758addb90d9ac2206e6d6156a51cac74e4`.
-Canonical machine-readable copy: [`deployments.json`](./deployments.json).
+Personhood schema UID: `0x6171b49bd97f67cab946cc7fe562c49faeb093fdd30ad438f7358b85849a26b6`.
+Canonical machine-readable copy: [`deployments.json`](./deployments.json) — including the
+superseded M2 `PasskeyAttester`/`PersonhoodResolver` (still live, still valid, just without
+guardians — see `supersededPasskeyPersonhood`).
 Source verification on MonadScan is pending an API key (`forge script … --verify`).
 
 **Verified live** on chain 10143:
@@ -28,7 +31,7 @@ Source verification on MonadScan is pending an API key (`forge script … --veri
 - an **EIP-712 delegated attestation** ([`0xee633951…`](https://testnet.monadscan.com/tx/0xee633951031ea8ef7aa74972ef0c377dab88f0cc2e243f112d82a231d75e972d)) relayed by a third party
 - a **passkey proof-of-personhood**: a WebAuthn assertion verified on-chain via the
   **native RIP-7212 P-256 precompile** (confirmed present at `0x100`), producing
-  attestation `0xc659ddad…bd9e827a` whose `attester` is the `PasskeyAttester`.
+  attestation `0xcb9642f3…44005f6` whose `attester` is the current `PasskeyAttester`.
 
 ## M2 — passkey proof-of-personhood
 
@@ -52,6 +55,40 @@ device passkey ──WebAuthn assertion──▶ PasskeyAttester.attestPersonhoo
   (`SIGNET_PERSONHOOD_V1 ‖ chainId ‖ attester ‖ subject ‖ x ‖ y`).
 - Deploy wires resolver ↔ attester with `vm.computeCreateAddress` — no setters.
 
+## M3 — social recovery (guardians)
+
+`PasskeyAttester` has no admin and no upgrade path — great for "not capturable," bad if the
+one passkey behind an identity is ever lost or stolen, with nothing to fall back on. M3 adds
+an opt-in escape hatch: name guardians while you still hold the passkey; enough of them can
+later approve swapping in a new one.
+
+```
+while the passkey is live:
+  subject's passkey ──sign setGuardiansChallenge──▶ PasskeyAttester.setGuardians(subject, guardians[], threshold, auth)
+
+device lost — recovery:
+  guardians (their own wallets) ──EIP-712 sign recoveryDigest──▶ threshold signatures collected off-chain
+  new device's passkey          ──sign recoveryChallenge──────▶ proves it actually holds the new key
+                                                                 ▼
+                                        PasskeyAttester.recoverPersonhood(subject, newX, newY, deadline, guardianSigs[], newAuth)
+                                          │  revokes the old attestation, mints a fresh one — same subject, new key
+                                          ▼
+                                        personhood attestation persists under the same identity
+```
+
+- **Guardians vouch for the person; they can't pick the key.** Recovery needs both `threshold`
+  guardian approvals *and* an independent WebAuthn proof from the new device — collusion among
+  guardians alone can't bind an identity to a key nobody's device produced.
+- **Guardians are set with the live passkey, not after the fact.** `setGuardians` requires the
+  *current* passkey to sign — only someone who still holds their device decides who gets to
+  vouch for them later. Callable any time post-enrolment to set up, or rotate, guardians.
+- At least 2 guardians, and `threshold` is enforced between 2 and `guardians.length`.
+- Still no admin: nobody but a subject's own chosen guardians can ever trigger a recovery for
+  them, and a subject who never called `setGuardians` has no recovery path at all (matches the
+  original M2 behaviour exactly).
+- `PasskeyAttester` deploys its own EIP-712 domain (`"SignetPasskeyAttester"`, separate from
+  `SignetAttestationRegistry`'s `"Signet"` domain) purely for guardian recovery signatures.
+
 ## Layout
 
 ```
@@ -61,7 +98,7 @@ src/
                      SignetEIP712 (delegated typed data), WebAuthn (P-256 assertion)
   SignetSchemaRegistry.sol       permissionless schema registry
   SignetAttestationRegistry.sol  core attest/revoke engine (direct + delegated)
-  PasskeyAttester.sol            WebAuthn passkey -> personhood attestation
+  PasskeyAttester.sol            WebAuthn passkey -> personhood attestation, + guardian recovery
   resolvers/
     SchemaResolver.sol       abstract base for policy resolvers
     SampleResolver.sol       reference allowlist resolver

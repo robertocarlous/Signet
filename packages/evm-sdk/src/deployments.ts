@@ -11,9 +11,12 @@ export const DEPLOYMENTS = {
     addresses: {
       schemaRegistry: '0x2eb183fFd7D40866DEA68f2173C4C5a604D22602',
       attestationRegistry: '0x4A48BE178900874FF1E5c2cF91E0B56f67d5359C',
-      passkeyAttester: '0x5A99835d5E7434BBf3e44Cc6A3E76b762045c48d',
-      personhoodResolver: '0xcf5b29668EB4Ea1dC51BA596c41bb2E722425100',
-      personhoodSchemaUID: '0x6e29449805b2f822cdbaea9ca4bbc8758addb90d9ac2206e6d6156a51cac74e4',
+      // Social-recovery-capable PasskeyAttester (setGuardians / recoverPersonhood). Supersedes
+      // 0x5A99835d5E7434BBf3e44Cc6A3E76b762045c48d — not an upgrade (no admin/upgrade path by
+      // design), a parallel deployment. Attestations under the old attester remain valid.
+      passkeyAttester: '0xfFBCd844DA4F5CaBBa36f60e4f17cEfe00029c8A',
+      personhoodResolver: '0x9eF15a8383a3564b62FbA13759B3C5c5C6c8FBBD',
+      personhoodSchemaUID: '0x6171b49bd97f67cab946cc7fe562c49faeb093fdd30ad438f7358b85849a26b6',
     } satisfies SignetAddresses,
   },
 } as const satisfies Record<string, { chainId: number; addresses: SignetAddresses }>

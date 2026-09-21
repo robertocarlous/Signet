@@ -61,6 +61,31 @@ export interface WebAuthnAuth {
   s: Hex
 }
 
+/** Arguments for {@link SignetClient.setGuardians} — social recovery, opt-in. */
+export interface SetGuardiansArgs {
+  subject: Address
+  /** At least 2 distinct addresses. */
+  guardians: Address[]
+  /** How many distinct guardian signatures {@link SignetClient.recoverPersonhood} will require. */
+  threshold: number
+  /** WebAuthn assertion from `subject`'s *current* passkey over {@link SignetClient.setGuardiansChallenge}. */
+  auth: WebAuthnAuth
+}
+
+/** Arguments for {@link SignetClient.recoverPersonhood}. */
+export interface RecoverPersonhoodArgs {
+  subject: Address
+  /** The *new* device's P-256 public key. */
+  newX: bigint
+  newY: bigint
+  /** Unix seconds; the guardian signatures are void after this. */
+  deadline: bigint
+  /** One EIP-712 signature per guardian (any order) over {@link SignetClient.recoveryDigest}. */
+  guardianSignatures: Hex[]
+  /** WebAuthn assertion from the *new* passkey over {@link SignetClient.recoveryChallenge}. */
+  newAuth: WebAuthnAuth
+}
+
 /** Deployed Signet contract addresses for one chain. */
 export interface SignetAddresses {
   schemaRegistry: Address

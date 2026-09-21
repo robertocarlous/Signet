@@ -38,6 +38,14 @@ library SignetErrors {
     error PasskeyAlreadyEnrolled(); // this credential has already claimed personhood
     error SubjectAlreadyVerified(); // subject already holds a personhood attestation
     error InvalidPublicKey(); // (0,0) or otherwise not a usable P-256 point
+    error NotEnrolled(); // subject has no personhood attestation to act on
+
+    // --- passkey / guardians & recovery ---
+    error TooFewGuardians(); // fewer than MIN_GUARDIANS addresses given
+    error InvalidThreshold(); // threshold < 2 or > guardians.length
+    error DuplicateGuardian(); // same address appears twice in a guardian set
+    error NoGuardiansConfigured(); // recovery attempted but subject never called setGuardians
+    error InsufficientGuardianApprovals(); // fewer than `threshold` distinct valid guardian signatures
 
     // --- misc ---
     error InvalidUID();

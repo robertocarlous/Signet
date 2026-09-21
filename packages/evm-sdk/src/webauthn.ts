@@ -13,6 +13,10 @@ import type { WebAuthnAuth } from './types'
 
 /** Matches `PasskeyAttester.CHALLENGE_DOMAIN`. */
 export const PERSONHOOD_CHALLENGE_DOMAIN = keccak256(stringToHex('SIGNET_PERSONHOOD_V1'))
+/** Matches `PasskeyAttester.SET_GUARDIANS_CHALLENGE_DOMAIN`. */
+export const SET_GUARDIANS_CHALLENGE_DOMAIN = keccak256(stringToHex('SIGNET_PERSONHOOD_SET_GUARDIANS_V1'))
+/** Matches `PasskeyAttester.RECOVERY_CHALLENGE_DOMAIN`. */
+export const RECOVERY_CHALLENGE_DOMAIN = keccak256(stringToHex('SIGNET_PERSONHOOD_RECOVERY_V1'))
 
 /** secp256r1 group order. */
 const P256_N = 0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551n
@@ -47,6 +51,82 @@ export function buildPersonhoodChallenge({ chainId, passkeyAttester, subject, x,
 /** `keccak256(abi.encode(x, y))` — the `PasskeyAttester` credential id. */
 export function credentialId(x: bigint, y: bigint): Hex {
   return keccak256(encodeAbiParameters([{ type: 'uint256' }, { type: 'uint256' }], [x, y]))
+}
+
+export interface SetGuardiansChallengeInput {
+  chainId: number
+  passkeyAttester: Address
+  subject: Address
+  guardians: Address[]
+  threshold: number
+  /** `client.guardianNonce(subject)` — bump after every successful `setGuardians` call. */
+  nonce: bigint
+}
+
+/**
+ * Reproduce `PasskeyAttester.setGuardiansChallenge(subject, guardians, threshold, nonce)` —
+ * the bytes the *current* passkey must sign to set (or rotate) `subject`'s recovery guardians.
+ */
+export function buildSetGuardiansChallenge({
+  chainId,
+  passkeyAttester,
+  subject,
+  guardians,
+  threshold,
+  nonce,
+}: SetGuardiansChallengeInput): Hex {
+  const guardiansHash = keccak256(
+    encodeAbiParameters([{ type: 'address[]' }, { type: 'uint8' }], [guardians, threshold])
+  )
+  return encodeAbiParameters(
+    [
+      { type: 'bytes32' },
+      { type: 'uint256' },
+      { type: 'address' },
+      { type: 'address' },
+      { type: 'bytes32' },
+      { type: 'uint256' },
+    ],
+    [SET_GUARDIANS_CHALLENGE_DOMAIN, BigInt(chainId), passkeyAttester, subject, guardiansHash, nonce]
+  )
+}
+
+export interface RecoveryChallengeInput {
+  chainId: number
+  passkeyAttester: Address
+  subject: Address
+  /** The *new* device's P-256 public key. */
+  newX: bigint
+  newY: bigint
+  /** `client.recoveryNonce(subject)` — bump after every successful `recoverPersonhood` call. */
+  nonce: bigint
+}
+
+/**
+ * Reproduce `PasskeyAttester.recoveryChallenge(subject, newX, newY, nonce)` — the bytes the
+ * *new* passkey must sign during recovery. This proves the new device actually holds the
+ * key being recovered onto; guardians vouch for the person, not the key.
+ */
+export function buildRecoveryChallenge({
+  chainId,
+  passkeyAttester,
+  subject,
+  newX,
+  newY,
+  nonce,
+}: RecoveryChallengeInput): Hex {
+  return encodeAbiParameters(
+    [
+      { type: 'bytes32' },
+      { type: 'uint256' },
+      { type: 'address' },
+      { type: 'address' },
+      { type: 'uint256' },
+      { type: 'uint256' },
+      { type: 'uint256' },
+    ],
+    [RECOVERY_CHALLENGE_DOMAIN, BigInt(chainId), passkeyAttester, subject, newX, newY, nonce]
+  )
 }
 
 /**
